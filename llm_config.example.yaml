@@ -1,0 +1,342 @@
+# =============================================================================
+# Ripple LLM 模型配置文件（示例）
+# =============================================================================
+#
+# 将此文件复制为 llm_config.yaml 并填入你的实际配置。
+# 自动搜索路径：llm_config.yaml / config/llm_config.yaml
+#
+# 配置优先级（高 → 低）：
+#   1. 代码传入 llm_config 字典（simulate() 的参数）
+#   2. 本配置文件
+#   3. 环境变量（通过 ${VAR} 在 YAML 中引用）
+#
+# 没有内置默认模型。所有角色的模型配置必须通过以上三种方式之一提供，
+# 否则引擎启动时会抛出 ConfigurationError。
+#
+# 支持 ${ENV_VAR} 语法引用环境变量，支持 ${VAR:-default} 默认值语法。
+#
+# api_mode 支持 4 种值：
+#   - chat_completions — 标准 OpenAI Chat Completions 格式（默认）
+#   - responses        — OpenAI Responses API 格式
+#   - anthropic        — Anthropic Messages API 格式
+#   - bedrock          — AWS Bedrock InvokeModel 格式
+#
+# 未显式设置 api_mode 时，根据 platform 和 url 自动推断：
+#   - platform=anthropic 且无自定义 URL → anthropic
+#   - platform=bedrock → bedrock
+#   - URL 包含 /responses → responses
+#   - 其他 → chat_completions
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# 全局默认配置（必填）
+# 所有角色继承此处的基础配置。角色级配置可覆盖任意字段。
+# 至少需要指定 model_platform 和 model_name。
+# ---------------------------------------------------------------------------
+_default:
+  model_platform: anthropic
+  model_name: claude-sonnet-4-20250514     # 全局默认模型
+  api_key: ${ANTHROPIC_API_KEY}            # 从环境变量读取
+  # url: https://api.anthropic.com         # 一般不需要显式设置
+  # api_mode: anthropic                    # 自动推断，可省略
+  temperature: 0.7
+  max_retries: 3
+
+# ---------------------------------------------------------------------------
+# 角色级配置
+#
+# 每个角色可覆盖全局默认的任意字段。
+# 支持两种格式：
+#   - 简写：仅模型名字符串（自动推断 platform）
+#   - 完整：字典格式（可设置所有参数）
+#
+# v2 架构使用 3 个角色：
+#   omniscient — 全视者（核心编排者，负责初始化、传播裁决、观测、结果合成）
+#   star       — KOL 个体决策（质量优先）
+#   sea        — 群体行为（成本优先）
+# ---------------------------------------------------------------------------
+
+# Omniscient Agent — 全视者（核心编排，需要高智能模型）
+omniscient:
+  model_name: claude-opus-4-6
+  temperature: 0.7
+
+# Star Agent — 质量优先（KOL 决策需要高智能模型）
+star:
+  model_name: claude-opus-4-6
+  temperature: 0.8                         # Star 可适当提高创造性
+
+# Sea Agent — 成本优先（群体行为可用轻量模型）
+sea:
+  model_name: claude-haiku
+  temperature: 0.5                         # Sea 偏稳定
+
+# ---------------------------------------------------------------------------
+# 嵌入模型配置（可选）
+#
+# 用于 Phase 3 语义相似度过滤：
+# - Ripple 创建时预计算 content_embedding
+# - Sea Agent 接收涟漪前通过 cosine similarity 预筛选
+# - 降低 LLM 调用次数，实现 O(1) 相关性判断
+#
+# 不配置或 type=noop 时，直接跳过相似度检测（不会用 LLM 替代），
+# 涟漪传播到所有拓扑邻居，完全由 Sea Agent LLM 决策反应。
+#
+# type 支持两种：
+#   - noop:                 不做嵌入（默认，跳过相似度预筛选）
+#   - api:                  使用 /embeddings API（OpenAI 兼容或 DashScope）
+# ---------------------------------------------------------------------------
+_embedding:
+  type: api
+  model_name: text-embedding-3-small       # OpenAI 嵌入模型
+  api_key: ${OPENAI_API_KEY}               # 从环境变量读取
+  # url: https://api.openai.com/v1         # OpenAI 一般不需要显式设置
+  # dimensions: 512                        # 可选：自定义向量维度
+
+# ---------------------------------------------------------------------------
+# 降级映射（可选）
+#
+# 当 LLM 调用次数接近上限（>80%）时，引擎会自动将高成本角色降级到
+# 更便宜的模型。降级映射在此定义。未配置的角色不会降级。
+# ---------------------------------------------------------------------------
+_degradation:
+  omniscient: claude-sonnet-4-20250514     # Omniscient: Opus → Sonnet
+  star: claude-sonnet-4-20250514           # Star: Opus → Sonnet
+
+
+# =============================================================================
+# 高级示例：混合 Provider（Anthropic + OpenAI）
+# =============================================================================
+
+# _default:
+#   model_platform: anthropic
+#   model_name: claude-sonnet-4-20250514
+#   api_key: ${ANTHROPIC_API_KEY}
+
+# omniscient:
+#   model_platform: openai
+#   model_name: gpt-4o
+#   api_key: ${OPENAI_API_KEY}
+#   url: ${OPENAI_API_BASE_URL:-https://api.openai.com/v1}
+#   api_mode: chat_completions
+#   temperature: 0.7
+
+# star:
+#   model_platform: openai
+#   model_name: gpt-4o
+#   api_key: ${OPENAI_API_KEY}
+#   api_mode: chat_completions
+#   temperature: 0.8
+
+# sea:
+#   model_platform: openai
+#   model_name: gpt-4o-mini
+#   api_key: ${OPENAI_API_KEY}
+#   api_mode: chat_completions
+
+
+# =============================================================================
+# 高级示例：Azure OpenAI（Chat Completions 模式）
+# =============================================================================
+
+# star:
+#   model_platform: azure
+#   model_name: gpt-4o
+#   api_key: ${AZURE_OPENAI_API_KEY}
+#   url: https://your-resource.openai.azure.com/
+#   api_mode: chat_completions
+#   api_version: "2024-08-01-preview"
+#   azure_deployment_name: gpt-4o-deployment
+
+
+# =============================================================================
+# 高级示例：自定义代理网关 / OpenAI 兼容 API（Chat Completions 模式）
+# 适用于国内代理、Ollama、vLLM 等 OpenAI 兼容端点
+# =============================================================================
+
+# _default:
+#   model_platform: openai
+#   model_name: claude-sonnet-4-20250514
+#   url: https://your-proxy.example.com/v1
+#   api_key: ${PROXY_API_KEY}
+#   api_mode: chat_completions
+
+# star:
+#   model_name: claude-3-opus
+#   temperature: 0.8
+
+# sea:
+#   model_name: gpt-4o-mini
+#   temperature: 0.5
+
+
+# =============================================================================
+# 高级示例：火山引擎/豆包（Chat Completions 模式）
+#
+# 使用标准 /chat/completions 端点，通过 ChatCompletionsAdapter httpx 直连。
+# =============================================================================
+
+# _default:
+#   model_platform: openai
+#   model_name: doubao-seed-1-6-flash-250828
+#   api_key: ${ARK_API_KEY}
+#   url: https://ark.cn-beijing.volces.com/api/v3
+#   api_mode: chat_completions                  # 默认值，可省略
+#   temperature: 0.7
+
+
+# =============================================================================
+# 高级示例：火山引擎/豆包（Responses API 模式）
+#
+# 使用 /responses 端点（OpenAI Responses API 兼容格式）。
+# api_mode 设为 "responses" 时通过 ResponsesAPIAdapter httpx 直连。
+#
+# Responses API 与 Chat Completions 的区别：
+#   - 请求体使用 "input" 替代 "messages"
+#   - 内容类型使用 "input_text"/"input_image" 替代 "text"/"image_url"
+#   - 响应使用 "output"（含 output_text）替代 "choices[].message.content"
+#   - 支持 instructions 字段传递系统提示词
+# =============================================================================
+
+# _default:
+#   model_platform: openai
+#   model_name: doubao-seed-1-6-flash-250828
+#   api_key: ${ARK_API_KEY}
+#   url: https://ark.cn-beijing.volces.com/api/v3
+#   api_mode: responses                          # 使用 Responses API 端点
+#   temperature: 0.7
+
+# star:
+#   model_name: doubao-seed-1-6-250115           # 高质量模型
+#   api_mode: responses
+#   temperature: 0.8
+
+# sea:
+#   model_name: doubao-seed-1-6-flash-250828     # 轻量快速模型
+#   api_mode: responses
+#   temperature: 0.5
+
+
+# =============================================================================
+# 高级示例：混合模式（同时使用 Anthropic 原生 API 和 Responses API）
+#
+# 不同角色可以使用不同的 api_mode。例如 Omniscient 使用 Anthropic 原生 API，
+# 而 Sea 使用火山引擎的 Responses API。
+# =============================================================================
+
+# _default:
+#   model_platform: anthropic
+#   model_name: claude-sonnet-4-20250514
+#   api_key: ${ANTHROPIC_API_KEY}
+#   # api_mode: anthropic                        # 自动推断
+
+# omniscient:
+#   model_platform: anthropic
+#   model_name: claude-opus-4-6
+#   # api_mode: anthropic                        # 自动推断
+
+# sea:
+#   model_platform: openai
+#   model_name: doubao-seed-1-6-flash-250828
+#   api_key: ${ARK_API_KEY}
+#   url: https://ark.cn-beijing.volces.com/api/v3
+#   api_mode: responses                          # 直连 Responses API
+
+
+# =============================================================================
+# 高级示例：Azure AI Foundry（Responses API 模式）
+#
+# Azure Responses API 端点的 URL 为完整路径，包含 api-version 参数。
+# 适配器自动检测 Azure 域名并使用 api-key 认证头（替代 Bearer Token）。
+#
+# URL 格式支持：
+#   - 完整 URL（含路径和 query 参数）：
+#     https://xxx.cognitiveservices.azure.com/openai/responses?api-version=2025-04-01-preview
+#     → 直接使用，不做任何修改
+#   - 基础 URL（自动追加 /responses 和 api-version）：
+#     https://xxx.cognitiveservices.azure.com/openai
+#     → 自动变为 .../openai/responses?api-version=<api_version>
+# =============================================================================
+
+# omniscient:
+#   model_name: gpt-5
+#   api_key: ${AZURE_OPENAI_API_KEY}
+#   url: https://gpt5codex02-resource.cognitiveservices.azure.com/openai/responses?api-version=2025-04-01-preview
+#   api_mode: responses
+
+# --- 或者使用基础 URL + api_version 字段（等效） ---
+# omniscient:
+#   model_name: gpt-5
+#   api_key: ${AZURE_OPENAI_API_KEY}
+#   url: https://gpt5codex02-resource.cognitiveservices.azure.com/openai
+#   api_mode: responses
+#   api_version: "2025-04-01-preview"            # 自动追加到 query 参数
+
+
+# =============================================================================
+# 高级示例：AWS Bedrock
+#
+# Bedrock 使用 boto3 + AWS SigV4 签名，需要安装可选依赖：
+#   pip install ripple[bedrock]
+# 认证通过 AWS 凭证链（环境变量、~/.aws/credentials 等）。
+# =============================================================================
+
+# omniscient:
+#   model_platform: bedrock
+#   model_name: anthropic.claude-3-opus-20240229-v1:0
+#   # api_mode: bedrock                          # 自动推断
+#   # Bedrock 使用 AWS 凭证，不需要 api_key
+#   # 需要配置 AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY 环境变量
+#   # 可通过 extra 指定 region_name 和 aws_profile：
+#   # region_name: us-east-1
+#   # aws_profile: dev
+
+
+# =============================================================================
+# 嵌入模型高级示例
+#
+# api_format 字段决定请求/响应格式：
+#   - "openai"（默认，可省略）: 标准 OpenAI 格式
+#     兼容: OpenAI / 硅基流动 / Azure OpenAI 等
+#     请求: {"model": "xxx", "input": ["text"], "encoding_format": "float"}
+#     响应: {"data": [{"embedding": [...], "index": 0}]}
+#
+#   - "dashscope": 阿里百炼 DashScope 格式
+#     请求: {"model": "xxx", "input": {"texts": ["text"]}}
+#     响应: {"output": {"embeddings": [{"embedding": [...], "text_index": 0}]}}
+# =============================================================================
+
+# ---- 示例：硅基流动 SiliconFlow（OpenAI 兼容格式） ----
+# _embedding:
+#   type: api
+#   model_name: Qwen/Qwen3-Embedding-8B
+#   api_key: ${SILICONFLOW_API_KEY}
+#   url: https://api.siliconflow.cn/v1
+#   # api_format: openai                   # 默认值，可省略
+
+# ---- 示例：阿里百炼 DashScope（DashScope 专用格式） ----
+# _embedding:
+#   type: api
+#   api_format: dashscope                  # 必须显式指定！
+#   model_name: text-embedding-v4
+#   api_key: ${DASHSCOPE_API_KEY}
+#   url: https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding
+
+# ---- 示例：OpenAI 嵌入模型 ----
+# _embedding:
+#   type: api
+#   model_name: text-embedding-3-small     # 或 text-embedding-3-large
+#   api_key: ${OPENAI_API_KEY}
+#   # url: https://api.openai.com/v1       # 一般不需要显式设置
+#   dimensions: 512                        # text-embedding-3 系列支持自定义维度
+
+# ---- 示例：Azure OpenAI 嵌入模型 ----
+# _embedding:
+#   type: api
+#   model_name: text-embedding-ada-002
+#   api_key: ${AZURE_OPENAI_API_KEY}
+#   url: https://your-resource.openai.azure.com/openai/deployments/embedding-deployment/embeddings?api-version=2024-02-01
+
+# ---- 示例：关闭嵌入过滤（默认行为） ----
+# _embedding:
+#   type: noop
