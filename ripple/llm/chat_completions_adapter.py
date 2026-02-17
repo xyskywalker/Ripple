@@ -1,32 +1,27 @@
 # chat_completions_adapter.py
 # =============================================================================
-# OpenAI Chat Completions API 适配器
+# OpenAI Chat Completions API 适配器 / OpenAI Chat Completions API adapter
 #
-# 职责：
-#   - 将 Ripple 的 (system_prompt, user_message) 调用转换为
-#     OpenAI Chat Completions API 格式的 HTTP 请求
-#   - 解析 Chat Completions API 的返回结构并提取文本内容
-#   - 兼容多种端点来源：
-#     · 标准 OpenAI（api.openai.com）
-#     · 国内 OpenAI 兼容端点（火山引擎/豆包、DeepSeek、Qwen、智谱、Moonshot 等）
-#     · Azure OpenAI（cognitiveservices.azure.com）
+# 职责 / Responsibilities:
+#   - 将 Ripple 的 (system_prompt, user_message) 转换为 Chat Completions HTTP 请求
+#     / Convert Ripple's (system_prompt, user_message) to Chat Completions HTTP requests
+#   - 解析返回结构并提取文本内容 / Parse response and extract text content
+#   - 兼容多种端点 / Compatible with multiple endpoints:
+#     · 标准 OpenAI / Standard OpenAI (api.openai.com)
+#     · 国内兼容端点 / CN-compatible (Volcengine, DeepSeek, Qwen, Zhipu, Moonshot, etc.)
+#     · Azure OpenAI (cognitiveservices.azure.com)
 #
-# URL 兼容性：
-#   适配器智能处理以下 URL 格式：
-#   1. 基础 URL：https://ark.cn-beijing.volces.com/api/v3
-#      -> 自动追加 /chat/completions
-#   2. 完整路径：https://xxx.azure.com/openai/chat/completions
-#      -> 直接使用
-#   3. 带 query 参数：https://xxx.azure.com/openai/chat/completions?api-version=...
-#      -> 直接使用（保留所有 query 参数）
+# URL 兼容性 / URL compatibility:
+#   1. 基础 URL / Base URL → 自动追加 / auto-appends /chat/completions
+#   2. 完整路径 / Full path → 直接使用 / used as-is
+#   3. 带 query 参数 / With query params → 保留 / preserved
 #
-# 认证方式：
-#   - 标准端点：Authorization: Bearer <key>
-#   - Azure 端点：api-key: <key>（自动检测 Azure 域名）
+# 认证方式 / Auth:
+#   - 标准端点 / Standard: Authorization: Bearer <key>
+#   - Azure 端点 / Azure: api-key: <key> (auto-detected)
 #
-# 请求格式（OpenAI Chat Completions）：
-#   {"model": "xxx", "messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}]}
-#   -> response["choices"][0]["message"]["content"]
+# 请求格式 / Request format (OpenAI Chat Completions):
+#   {"model": "xxx", "messages": [...]} → response["choices"][0]["message"]["content"]
 # =============================================================================
 
 from __future__ import annotations
@@ -40,7 +35,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Azure 相关域名后缀（用于自动检测认证方式）
+# Azure 相关域名后缀（用于自动检测认证方式） / Azure domain suffixes for auth detection
 _AZURE_DOMAIN_SUFFIXES = (
     "cognitiveservices.azure.com",
     "openai.azure.com",
@@ -50,10 +45,12 @@ _AZURE_DOMAIN_SUFFIXES = (
 
 class ChatCompletionsAdapter:
     """OpenAI Chat Completions API 适配器。
+    / OpenAI Chat Completions API adapter.
 
-    通过 httpx 异步 HTTP 直连调用 Chat Completions API 端点。
-    将 Ripple 标准的 (system_prompt, user_message) 调用格式
-    转换为 Chat Completions API 要求的请求结构。
+    通过 httpx 异步 HTTP 直连调用 Chat Completions API。
+    / Async HTTP calls via httpx to Chat Completions API endpoints.
+    将 Ripple 标准调用格式转换为 Chat Completions 请求结构。
+    / Converts Ripple's (system_prompt, user_message) to Chat Completions format.
     """
 
     def __init__(
@@ -67,24 +64,20 @@ class ChatCompletionsAdapter:
         max_retries: int = 3,
         api_version: Optional[str] = None,
     ):
-        """初始化适配器。
+        """初始化适配器。 / Initialize adapter.
 
         Args:
-            url: API 端点 URL，支持以下格式：
-                 - 基础 URL：https://ark.cn-beijing.volces.com/api/v3
-                   -> 自动追加 /chat/completions
-                 - 完整 URL：https://xxx.azure.com/openai/chat/completions
-                   -> 直接使用
-                 - 带参数 URL：https://xxx.azure.com/openai/chat/completions?api-version=2025-04-01-preview
-                   -> 直接使用（保留 query 参数）
-            api_key: API 密钥。
-            model: 模型名称（如 "gpt-4o"）。
-            temperature: 生成温度。
-            max_tokens: 最大输出 token 数。
-            timeout: 请求超时时间（秒）。
-            max_retries: 最大重试次数。
-            api_version: Azure API 版本（可选）。当 URL 为 Azure 基础 URL
-                 且未包含 api-version 参数时，自动追加此参数。
+            url: API 端点 URL / API endpoint URL. Supports:
+                 - 基础 URL / Base URL → auto-appends /chat/completions
+                 - 完整 URL / Full URL → used as-is
+                 - 带参数 URL / URL with query params → preserved
+            api_key: API 密钥。 / API key.
+            model: 模型名称。 / Model name (e.g. "gpt-4o").
+            temperature: 生成温度。 / Generation temperature.
+            max_tokens: 最大输出 token 数。 / Max output tokens.
+            timeout: 请求超时时间（秒）。 / Request timeout in seconds.
+            max_retries: 最大重试次数。 / Max retry count.
+            api_version: Azure API 版本（可选）。 / Azure API version (optional).
         """
         self._endpoint = self._resolve_endpoint(url, api_version)
         self._is_azure = self._detect_azure(url)
@@ -106,18 +99,18 @@ class ChatCompletionsAdapter:
         system_prompt: str,
         user_message: str,
     ) -> str:
-        """调用 Chat Completions API 并返回文本响应。
+        """调用 Chat Completions API 并返回文本响应。 / Call Chat Completions API and return text.
 
         Args:
-            system_prompt: 系统提示词。
-            user_message: 用户消息。
+            system_prompt: 系统提示词。 / System prompt.
+            user_message: 用户消息。 / User message.
 
         Returns:
-            模型输出的文本内容。
+            模型输出的文本内容。 / Model output text.
 
         Raises:
-            httpx.HTTPStatusError: HTTP 请求失败。
-            ValueError: 响应格式无法解析。
+            httpx.HTTPStatusError: HTTP 请求失败。 / HTTP request failed.
+            ValueError: 响应格式无法解析。 / Unparseable response format.
         """
         request_body = self._build_request(system_prompt, user_message)
 
@@ -176,19 +169,19 @@ class ChatCompletionsAdapter:
         )
 
     # =========================================================================
-    # URL 与认证检测
+    # URL 与认证检测 / URL & Auth Detection
     # =========================================================================
 
     @staticmethod
     def _resolve_endpoint(
         url: str, api_version: Optional[str] = None
     ) -> str:
-        """智能解析端点 URL。
+        """智能解析端点 URL。 / Smartly resolve endpoint URL.
 
-        处理逻辑：
-        1. 如果 URL 路径中已包含 /chat/completions -> 直接使用
-        2. 如果 URL 路径中不含 /chat/completions -> 在路径末尾追加
-        3. 如果是 Azure URL 且 query 中无 api-version -> 自动追加
+        处理逻辑 / Logic:
+        1. 路径含 /chat/completions / Path has /chat/completions → 直接使用 / use as-is
+        2. 路径不含 / Path missing → 追加 / append /chat/completions
+        3. Azure URL 且无 api-version / Azure without api-version → 自动追加 / auto-append
         """
         parsed = urlparse(url)
 
@@ -212,18 +205,18 @@ class ChatCompletionsAdapter:
 
     @staticmethod
     def _detect_azure(url: str) -> bool:
-        """检测 URL 是否为 Azure 端点。"""
+        """检测 URL 是否为 Azure 端点。 / Detect if URL is an Azure endpoint."""
         hostname = urlparse(url).hostname or ""
         return any(hostname.endswith(d) for d in _AZURE_DOMAIN_SUFFIXES)
 
     # =========================================================================
-    # 请求构建与响应解析
+    # 请求构建与响应解析 / Request Building & Response Parsing
     # =========================================================================
 
     def _build_request(
         self, system_prompt: str, user_message: str
     ) -> Dict[str, Any]:
-        """构建 Chat Completions API 请求体。"""
+        """构建 Chat Completions API 请求体。 / Build Chat Completions API request body."""
         messages: List[Dict[str, str]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -242,9 +235,9 @@ class ChatCompletionsAdapter:
 
     @staticmethod
     def _extract_text(response_data: Dict[str, Any]) -> str:
-        """从 Chat Completions API 响应中提取文本内容。
+        """从 Chat Completions API 响应中提取文本内容。 / Extract text from Chat Completions response.
 
-        标准格式：response["choices"][0]["message"]["content"]
+        标准格式 / Standard: response["choices"][0]["message"]["content"]
         """
         choices = response_data.get("choices", [])
         if choices:
@@ -261,16 +254,16 @@ class ChatCompletionsAdapter:
 
     @classmethod
     def from_endpoint_config(cls, config) -> ChatCompletionsAdapter:
-        """从 ModelEndpointConfig 创建适配器实例。
+        """从 ModelEndpointConfig 创建适配器实例。 / Create adapter from ModelEndpointConfig.
 
         Args:
-            config: ModelEndpointConfig 实例。
+            config: ModelEndpointConfig 实例。 / ModelEndpointConfig instance.
 
         Returns:
-            ChatCompletionsAdapter 实例。
+            ChatCompletionsAdapter 实例。 / ChatCompletionsAdapter instance.
 
         Raises:
-            ValueError: 缺少必要的配置（url / api_key）。
+            ValueError: 缺少必要的配置（url / api_key）。 / Missing required config (url / api_key).
         """
         if not config.url:
             raise ValueError(

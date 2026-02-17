@@ -1,10 +1,11 @@
-"""全视者 Agent —— Ripple 核心决策中心。
+"""全视者 Agent —— Ripple 核心决策中心。 / Omniscient Agent — Ripple's core decision center.
 
 全视者是系统中唯一拥有完整上下文的 Agent，负责：
-1. 场景初始化（INIT）
-2. 涟漪传播裁决（RIPPLE）
-3. 涌现检测与相变判断（OBSERVE）
-4. 结果合成
+The only agent with full context, responsible for:
+1. 场景初始化（INIT） / Scene initialization (INIT)
+2. 涟漪传播裁决（RIPPLE） / Ripple propagation verdict (RIPPLE)
+3. 涌现检测与相变判断（OBSERVE） / Emergence detection & phase transition (OBSERVE)
+4. 结果合成 / Result synthesis
 """
 
 import json
@@ -35,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
-    """从 LLM JSON 输出中安全提取浮点数。"""
+    """从 LLM JSON 输出中安全提取浮点数。 / Safely extract float from LLM JSON output."""
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):
@@ -50,26 +51,26 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
     return default
 
 
-# 全视者 INIT 输出必须包含的字段
+# 全视者 INIT 输出必须包含的字段 / Required fields in Omniscient INIT output
 INIT_REQUIRED_FIELDS = {
     "star_configs", "sea_configs", "topology",
     "dynamic_parameters", "seed_ripple",
 }
 
-# OBSERVE 输出必须包含的字段
+# OBSERVE 输出必须包含的字段 / Required fields in OBSERVE output
 OBSERVE_REQUIRED_FIELDS = {
     "phase_vector", "phase_transition_detected",
     "emergence_events", "topology_recommendations",
 }
 
-# synthesize_result 输出必须包含的字段
+# synthesize_result 输出必须包含的字段 / Required fields in synthesize_result output
 SYNTH_REQUIRED_FIELDS = {
     "prediction", "timeline", "bifurcation_points", "agent_insights",
 }
 
 
 class OmniscientAgent:
-    """全视者 Agent，Ripple 的全知裁决者。"""
+    """全视者 Agent，Ripple 的全知裁决者。 / Omniscient Agent, Ripple's all-knowing arbiter."""
 
     def __init__(
         self,
@@ -83,7 +84,7 @@ class OmniscientAgent:
         self._init_result: Optional[Dict[str, Any]] = None
 
     async def _call_llm(self, user_prompt: str, phase: str = "") -> str:
-        """调用 LLM，由引擎注入的 caller 处理实际路由。"""
+        """调用 LLM，由引擎注入的 caller 处理实际路由。 / Call LLM; routing handled by injected caller."""
         if phase:
             logger.info(f"Omniscient 调用 LLM: {phase}")
         return await self._llm_caller(
@@ -92,7 +93,7 @@ class OmniscientAgent:
         )
 
     def _parse_json(self, raw: str) -> Dict[str, Any]:
-        """从 LLM 输出中提取 JSON。支持 markdown code block 包裹。"""
+        """从 LLM 输出中提取 JSON。支持 markdown code block 包裹。 / Extract JSON from LLM output; supports markdown code blocks."""
         text = raw.strip()
         if text.startswith("```"):
             lines = text.split("\n")
@@ -118,21 +119,21 @@ class OmniscientAgent:
         skill_profile: str,
         simulation_input: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Phase INIT: 初始化模拟场景（3 次聚焦 LLM 调用）。
+        """Phase INIT: 初始化模拟场景（3 次聚焦 LLM 调用）。 / Initialize simulation scene (3 focused LLM calls).
 
-        Sub-call 1: 场景分析 + 时间参数 (dynamic_parameters)
-        Sub-call 2: Agent 配置 (star_configs, sea_configs)
-        Sub-call 3: 拓扑 + 种子 (topology, seed_ripple)
+        Sub-call 1: 场景分析 + 时间参数 / Scene analysis + time params (dynamic_parameters)
+        Sub-call 2: Agent 配置 / Agent configs (star_configs, sea_configs)
+        Sub-call 3: 拓扑 + 种子 / Topology + seed (topology, seed_ripple)
 
         Args:
-            skill_profile: Skill 自然语言画像（domain + platform + omniscient prompt）
-            simulation_input: 模拟请求（event, source, historical 等）
+            skill_profile: Skill 自然语言画像 / Skill natural language profile
+            simulation_input: 模拟请求 / Simulation request (event, source, historical, etc.)
 
         Returns:
-            初始化结果，包含 star_configs, sea_configs, topology,
+            初始化结果 / Init result with star_configs, sea_configs, topology,
             dynamic_parameters, seed_ripple
         """
-        # Sub-call 1: 场景分析 + 时间参数
+        # Sub-call 1: 场景分析 + 时间参数 / Scene analysis + time params
         dynamic_parameters = await self._init_sub_call(
             self._build_init_dynamics_prompt(skill_profile, simulation_input),
             phase="INIT:dynamics",
@@ -140,7 +141,7 @@ class OmniscientAgent:
             error_label="INIT:dynamics",
         )
 
-        # Sub-call 2: Agent 配置
+        # Sub-call 2: Agent 配置 / Agent configs
         agents_result = await self._init_sub_call(
             self._build_init_agents_prompt(
                 skill_profile, simulation_input, dynamic_parameters,
@@ -150,7 +151,7 @@ class OmniscientAgent:
             error_label="INIT:agents",
         )
 
-        # Sub-call 3: 拓扑 + 种子
+        # Sub-call 3: 拓扑 + 种子 / Topology + seed
         topology_result = await self._init_sub_call(
             self._build_init_topology_prompt(
                 skill_profile, simulation_input, dynamic_parameters,
@@ -161,7 +162,7 @@ class OmniscientAgent:
             error_label="INIT:topology",
         )
 
-        # 合并为统一结果
+        # 合并为统一结果 / Merge into unified result
         result = {
             "dynamic_parameters": dynamic_parameters,
             "star_configs": agents_result["star_configs"],
@@ -181,7 +182,7 @@ class OmniscientAgent:
         required_fields: set,
         error_label: str,
     ) -> Dict[str, Any]:
-        """执行单次 INIT sub-call，带重试。"""
+        """执行单次 INIT sub-call，带重试。 / Execute single INIT sub-call with retries."""
         last_error = None
         prompt = user_prompt
         for attempt in range(1 + self._max_retries):
@@ -213,7 +214,7 @@ class OmniscientAgent:
         skill_profile: str,
         simulation_input: Dict[str, Any],
     ) -> str:
-        """Sub-call 1: 场景分析 + 时间参数。"""
+        """Sub-call 1: 场景分析 + 时间参数。 / Scene analysis + time params."""
         input_json = json.dumps(simulation_input, ensure_ascii=False, indent=2)
         horizon = simulation_input.get("simulation_horizon", "")
         horizon_line = (
@@ -232,7 +233,7 @@ class OmniscientAgent:
         simulation_input: Dict[str, Any],
         dynamic_parameters: Dict[str, Any],
     ) -> str:
-        """Sub-call 2: Agent 配置。"""
+        """Sub-call 2: Agent 配置。 / Agent configs."""
         input_json = json.dumps(simulation_input, ensure_ascii=False, indent=2)
         dp_json = json.dumps(dynamic_parameters, ensure_ascii=False, indent=2)
         return OMNISCIENT_INIT_AGENTS.format(
@@ -248,7 +249,7 @@ class OmniscientAgent:
         dynamic_parameters: Dict[str, Any],
         agents_result: Dict[str, Any],
     ) -> str:
-        """Sub-call 3: 拓扑 + 种子。"""
+        """Sub-call 3: 拓扑 + 种子。 / Topology + seed."""
         input_json = json.dumps(simulation_input, ensure_ascii=False, indent=2)
         dp_json = json.dumps(dynamic_parameters, ensure_ascii=False, indent=2)
         agents_json = json.dumps(
@@ -266,7 +267,7 @@ class OmniscientAgent:
         )
 
     def _validate_init_result(self, result: Dict[str, Any]) -> None:
-        """校验 INIT 输出的必要字段。"""
+        """校验 INIT 输出的必要字段。 / Validate required fields in INIT output."""
         missing = INIT_REQUIRED_FIELDS - set(result.keys())
         if missing:
             raise ValueError(f"INIT 输出缺少必要字段: {missing}")
@@ -287,17 +288,17 @@ class OmniscientAgent:
         wave_time_window: str = "",
         simulation_horizon: str = "",
     ) -> OmniscientVerdict:
-        """Phase RIPPLE: 每轮波纹的传播裁决。
+        """Phase RIPPLE: 每轮波纹的传播裁决。 / Propagation verdict for each wave.
 
         Args:
-            field_snapshot: 当前 Field 快照（Agent 状态、活跃涟漪、拓扑）
-            wave_number: 当前 wave 序号
-            propagation_history: 传播历史摘要
-            wave_time_window: 每轮 wave 对应的现实时间（如 "4h"）
-            simulation_horizon: 模拟总时长（如 "48h"）
+            field_snapshot: 当前 Field 快照 / Current Field snapshot (agents, ripples, topology)
+            wave_number: 当前 wave 序号 / Current wave number
+            propagation_history: 传播历史摘要 / Propagation history summary
+            wave_time_window: 每轮 wave 对应的现实时间 / Real time per wave (e.g. "4h")
+            simulation_horizon: 模拟总时长 / Total simulation horizon (e.g. "48h")
 
         Returns:
-            OmniscientVerdict 含激活列表和 continue 决定
+            OmniscientVerdict 含激活列表和 continue 决定 / OmniscientVerdict with activation list and continue decision
         """
         user_prompt = self._build_ripple_prompt(
             field_snapshot, wave_number, propagation_history,
@@ -324,7 +325,7 @@ class OmniscientAgent:
                         + user_prompt
                     )
 
-        # 安全降级：终止传播
+        # 安全降级：终止传播 / Safe fallback: stop propagation
         logger.error(f"全视者 RIPPLE 裁决失败，安全降级为终止传播: {last_error}")
         return OmniscientVerdict(
             wave_number=wave_number,
@@ -349,7 +350,7 @@ class OmniscientAgent:
             field_snapshot, ensure_ascii=False, indent=2, default=str,
         )
 
-        # Explicitly list available agents with activation stats
+        # 显式列出可用 Agent 及其激活统计 / Explicitly list available agents with activation stats
         agent_lines = []
         for sid, info in field_snapshot.get("stars", {}).items():
             desc = info.get('description', '')
@@ -383,7 +384,7 @@ class OmniscientAgent:
                 )
         agent_list = "\n".join(agent_lines) if agent_lines else "  （无可用 Agent）"
 
-        # Build time progress section
+        # 构建时间进度段 / Build time progress section
         time_progress = ""
         if wave_time_window and simulation_horizon:
             from ripple.engine.runtime import _parse_hours
@@ -400,7 +401,7 @@ class OmniscientAgent:
                     remaining_h=remaining_h,
                 )
 
-        # Wave 0: inject first-wave hint for Sea priority
+        # Wave 0: 注入首轮 Sea 优先提示 / Wave 0: inject first-wave hint for Sea priority
         wave0_hint = OMNISCIENT_RIPPLE_WAVE0_HINT if wave_number == 0 else ""
 
         return OMNISCIENT_RIPPLE_VERDICT.format(
@@ -413,7 +414,7 @@ class OmniscientAgent:
         )
 
     def _parse_verdict(self, data: Dict[str, Any]) -> OmniscientVerdict:
-        """将 LLM JSON 输出解析为 OmniscientVerdict。"""
+        """将 LLM JSON 输出解析为 OmniscientVerdict。 / Parse LLM JSON output into OmniscientVerdict."""
         activated = [
             AgentActivation(
                 agent_id=a["agent_id"],
@@ -449,14 +450,14 @@ class OmniscientAgent:
         field_snapshot: Dict[str, Any],
         full_history: str,
     ) -> Dict[str, Any]:
-        """Phase OBSERVE: 涌现检测与相变判断。
+        """Phase OBSERVE: 涌现检测与相变判断。 / Emergence detection & phase transition.
 
         Args:
-            field_snapshot: 当前 Field 快照
-            full_history: 完整传播历史
+            field_snapshot: 当前 Field 快照 / Current Field snapshot
+            full_history: 完整传播历史 / Full propagation history
 
         Returns:
-            观测结果，包含 phase_vector, phase_transition_detected,
+            观测结果 / Observation with phase_vector, phase_transition_detected,
             emergence_events, topology_recommendations
         """
         user_prompt = self._build_observe_prompt(field_snapshot, full_history)
@@ -479,7 +480,7 @@ class OmniscientAgent:
                         + user_prompt
                     )
 
-        # 安全降级：返回默认观测
+        # 安全降级：返回默认观测 / Safe fallback: return default observation
         logger.error(f"全视者 OBSERVE 失败，返回默认观测: {last_error}")
         return {
             "phase_vector": {
@@ -510,7 +511,7 @@ class OmniscientAgent:
             raise ValueError(f"OBSERVE 输出缺少必要字段: {missing}")
 
     # =========================================================================
-    # 结果合成
+    # 结果合成 / Result Synthesis
     # =========================================================================
 
     async def synthesize_result(
@@ -519,15 +520,15 @@ class OmniscientAgent:
         observation: Dict[str, Any],
         simulation_input: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """合成最终预测结果。
+        """合成最终预测结果。 / Synthesize final prediction result.
 
         Args:
-            field_snapshot: 最终 Field 快照
-            observation: OBSERVE 阶段的输出
-            simulation_input: 原始模拟请求
+            field_snapshot: 最终 Field 快照 / Final Field snapshot
+            observation: OBSERVE 阶段的输出 / OBSERVE phase output
+            simulation_input: 原始模拟请求 / Original simulation request
 
         Returns:
-            预测结果，包含 prediction, timeline, bifurcation_points,
+            预测结果 / Prediction with prediction, timeline, bifurcation_points,
             agent_insights
         """
         user_prompt = self._build_synth_prompt(

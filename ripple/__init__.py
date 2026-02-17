@@ -1,9 +1,9 @@
 # ripple/__init__.py
 # =============================================================================
-# Ripple — Agent-Native CAS 社会行为预测引擎。
+# Ripple — Agent-Native CAS 社会行为预测引擎。 / Agent-Native CAS social behavior prediction engine.
 # =============================================================================
 
-"""Ripple — Agent-Native CAS 社会行为预测引擎。"""
+"""Ripple — Agent-Native CAS 社会行为预测引擎。 / Agent-Native CAS social behavior prediction engine."""
 
 from ripple.api.simulate import simulate
 

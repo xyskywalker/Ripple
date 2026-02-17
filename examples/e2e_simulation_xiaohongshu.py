@@ -1,28 +1,25 @@
 #!/usr/bin/env python3
 # =============================================================================
 # e2e_simulation_xiaohongshu.py — 端到端全链路模拟示例（小红书 48 小时）
+# / End-to-end simulation example (Xiaohongshu 48-hour)
 #
 # 本示例完成两种模拟，用于验证 Ripple（全视者中心制）与选题/账号数据的对接形态，
-# 选题、账号、历史内容的字段与 MPlus 项目（/Users/xymbp/cr/MPlus-dev）对齐，
-# 便于后续两项目整合时直接复用数据结构。
+# 选题、账号、历史内容的字段与 MPlus 项目对齐，便于后续整合时复用数据结构。
+# / Two simulation modes to verify Ripple (Omniscient-centric) integration
+# / with topic/account data, aligned with MPlus project data structures.
 #
-# 1. 基础模拟：仅输入社交媒体选题内容 + 小红书平台画像，模拟发布后 48 小时。
-# 2. 增强模拟：输入选题内容 + 账号基本信息与历史内容供参考 + 小红书平台画像，
-#              模拟发布后 48 小时。
+# 1. 基础模拟：仅选题内容 + 小红书平台画像 / Basic: topic + platform profile only
+# 2. 增强模拟：选题 + 账号信息 + 历史内容 + 平台画像 / Enhanced: + account + history
 #
-# 模拟结束后，通过三轮 LLM 请求对完整的模拟 JSON（含增量记录的过程数据）
-# 进行全面解读，输出包含以下章节的人类友好报告：
-#   【模拟背景】【初始环境】【传播过程回顾】【关键传播路径】
-#   【关键时间点解读】【数据预测】【运营建议】
-# 所有 Agent 名称统一转为友好中文格式，所有英文术语翻译为中文。
+# 模拟结束后通过三轮 LLM 请求生成人类友好解读报告。
+# / After simulation, 3-round LLM calls generate a human-readable report.
 #
-# 用法：
-#   # 从项目根目录运行（推荐）
+# 用法 / Usage：
 #   python examples/e2e_simulation_xiaohongshu.py basic
 #   python examples/e2e_simulation_xiaohongshu.py enhanced
 #   python examples/e2e_simulation_xiaohongshu.py all
 #
-# 依赖：项目根目录存在 llm_config.yaml；Skill social-media 可被加载。
+# 依赖 / Dependencies：llm_config.yaml at project root; social-media skill loadable.
 # =============================================================================
 
 from __future__ import annotations
@@ -35,7 +32,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-# 将项目根目录加入 sys.path，便于直接运行本脚本
+# 将项目根目录加入 sys.path，便于直接运行本脚本 / Add project root to sys.path
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -44,7 +41,7 @@ from ripple.api.simulate import simulate
 from ripple.llm.router import ModelRouter
 from ripple.primitives.events import SimulationEvent
 
-# 日志配置
+# 日志配置 / Logging setup
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
@@ -53,66 +50,61 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# 常量：平台与时间
+# 常量：平台与时间 / Constants: platform & time
 # =============================================================================
 
-# 平台标识（与 Ripple 及 MPlus platform_code 一致）
+# 平台标识（与 Ripple 及 MPlus platform_code 一致） / Platform code (aligned with MPlus)
 PLATFORM_XIAOHONGSHU = "xiaohongshu"
 
-# 模拟时长：发布后 48 小时。使用 wave-based 编排（全视者自行判定时间推进），
-# max_waves 作为兼容参数传入 simulate()。
+# 模拟时长：发布后 48 小时 / Simulation duration: 48h after publish
+# max_waves 作为 simulate() 兼容参数 / max_waves as compat param for simulate()
 SIMULATION_HOURS = 48
-# wave 数作为 simulate() 兼容参数
+# wave 数作为 simulate() 兼容参数 / Wave count as simulate() compat param
 WAVES_FOR_48H = SIMULATION_HOURS // 2
 
-# 单次模拟的 LLM 调用次数上限（额度）。超限后引擎会停止发起新调用。
-# 项目内默认在 ripple/api/simulate.py、ripple/llm/router.py 中为 200；此处示例设为 300。
+# 单次模拟的 LLM 调用次数上限 / Max LLM calls per simulation run
+# 项目默认 200；此处示例设为 300 / Project default 200; example uses 300
 MAX_LLM_CALLS = 300
 
 
 # =============================================================================
 # 全视者中心制架构下的 Agent 调用模式
+# / Agent invocation pattern under Omniscient-centric architecture
 #
-# Ripple 中：
-#   - 全视者（Omniscient）是唯一的全知决策者，负责初始化、传播裁决、观测和结果合成。
-#     每轮 wave 由全视者决定哪些 Agent 被激活、传播是否继续。
-#   - Star（KOL）和 Sea（受众群体）只在被全视者裁决激活时才调用 LLM。
-#     它们是纯行为模拟器，不知道全局状态。
-#   - 如果某些 Agent 在整场模拟中没有被全视者激活，日志中不会看到对应调用。
-#     这是正常行为——由全视者判断哪些 Agent 在当前传播语境下应当响应。
+# Ripple 中 / In Ripple:
+#   - 全视者（Omniscient）是唯一的全知决策者 / Omniscient is the sole decision-maker
+#   - Star/Sea 只在被全视者激活时调用 LLM / Star/Sea only call LLM when activated
+#   - 未被激活的 Agent 不会出现在日志中（正常行为） / Inactive agents won't appear in logs
 # =============================================================================
 
 
 # =============================================================================
-# 数据结构说明（与 MPlus 对齐）
+# 数据结构说明（与 MPlus 对齐） / Data structures (aligned with MPlus)
 #
-# 选题 (topic)：id, session_id, title, description, target_platform, content,
-#                metadata, account_profile_id, status, created_at, updated_at
-# 账号 (account_profile)：id, platform_code, account_name, account_id, bio,
-#   main_category, sub_categories, content_style, target_audience,
-#   followers_count, posts_count, verification_status, started_at, extra_metrics
-# 历史内容 (post_performance)：id, account_profile_id, title, content, post_type,
-#   tags, is_top, post_url, publish_time, views, likes, comments, favorites, shares
+# 选题 (topic) / Topic: id, title, description, target_platform, content, ...
+# 账号 (account_profile) / Account: id, platform_code, account_name, bio, ...
+# 历史内容 (post_performance) / Post history: id, title, views, likes, ...
 # =============================================================================
 
 
 def build_event_from_topic(topic: Dict[str, Any]) -> Dict[str, Any]:
     """从 MPlus 选题结构构建 simulate() 的 event 输入。
+    / Build simulate() event input from MPlus topic structure.
 
-    引擎通过全视者的 INIT 阶段解读 event 语义，支持自然语言 + 可选结构化。
-    此处将选题的 title / description / content 组装为既有结构又可读的 payload。
+    引擎通过全视者 INIT 阶段解读 event 语义，支持自然语言 + 可选结构化。
+    Engine interprets event semantics via Omniscient INIT phase.
     """
     title = topic.get("title") or ""
     description = topic.get("description") or ""
     content = topic.get("content") or ""
     target_platform = topic.get("target_platform") or PLATFORM_XIAOHONGSHU
 
-    # 自然语言摘要，供 LLM 理解“要模拟什么内容”
+    # 自然语言摘要，供 LLM 理解"要模拟什么内容" / NL summary for LLM context
     summary_parts = [f"标题：{title}"]
     if description:
         summary_parts.append(f"选题说明：{description}")
     if content:
-        # 正文过长时只取前 500 字作为摘要
+        # 正文过长时只取前 500 字作为摘要 / Truncate to first 500 chars if too long
         content_preview = content[:500] + "..." if len(content) > 500 else content
         summary_parts.append(f"正文摘要：{content_preview}")
 
@@ -127,8 +119,10 @@ def build_event_from_topic(topic: Dict[str, Any]) -> Dict[str, Any]:
 
 def build_source_from_account(account: Dict[str, Any]) -> Dict[str, Any]:
     """从 MPlus 账号画像构建 simulate() 的 source 输入。
+    / Build simulate() source input from MPlus account profile.
 
-    source 表示"发布者/来源"画像，供全视者 INIT 阶段生成 Star/Sea Agent 时参考。
+    source 表示"发布者/来源"画像，供全视者 INIT 阶段参考。
+    Source represents publisher profile for Omniscient INIT reference.
     """
     name = account.get("account_name") or ""
     bio = account.get("bio") or ""
@@ -174,9 +168,10 @@ def build_historical_from_posts(
     posts: List[Dict[str, Any]], max_items: int = 10
 ) -> List[Dict[str, Any]]:
     """从 MPlus 历史内容列表构建 simulate() 的 historical 输入。
+    / Build simulate() historical input from MPlus post history.
 
-    historical 为历史表现数据列表，供全视者 INIT 阶段做基线/校准参考。
-    每条保留标题、内容摘要、互动数据等，便于 LLM 理解账号历史表现。
+    历史表现数据列表，供全视者 INIT 做基线校准参考。
+    Historical performance data for Omniscient INIT baseline calibration.
     """
     out = []
     for p in posts[:max_items]:
@@ -210,11 +205,11 @@ def _historical_engagement_stats(
     posts: List[Dict[str, Any]],
     metrics: tuple = ("views", "likes", "comments", "favorites"),
 ) -> Dict[str, Dict[str, Any]]:
-    """基于历史内容计算查看/点赞/评论/收藏的区间与简单置信描述。
+    """基于历史内容计算互动指标的区间与置信描述。
+    / Compute engagement metric ranges from historical posts.
 
-    返回形如：
-      {"views": {"n": 2, "min": 15000, "max": 28000, "mean": 21500, "p25": 15000, "p75": 28000}, ...}
-    用于与模拟结果结合后供 LLM 生成可读总结。
+    返回各指标的 n/min/max/mean/p25/p75，供 LLM 生成可读总结。
+    Returns per-metric stats for LLM-readable summaries.
     """
     out: Dict[str, Dict[str, Any]] = {}
     for key in metrics:
@@ -247,9 +242,10 @@ async def _call_default_llm_for_summary(
     system_prompt: str,
     user_message: str,
 ) -> str:
-    """使用项目默认 LLM（llm_config 中 _default / omniscient）生成一段文本。
+    """使用项目默认 LLM 生成一段文本。
+    / Call default LLM (from llm_config) to generate text.
 
-    仅在本示例内使用，通过统一的 adapter.call() 接口调用。
+    仅在本示例内使用。 / Used only within this example.
     """
     try:
         adapter = router.get_model_backend(role)
@@ -264,9 +260,10 @@ def _compress_waves_for_llm(
     waves: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
     """压缩 wave 数据以控制 LLM 上下文 token 量。
+    / Compress wave data to reduce LLM context tokens.
 
-    保留每轮的核心信息（裁决摘要、激活 Agent、响应类型、能量流），
-    省略冗余的 pre/post snapshot 细节，仅首轮保留初始状态概要。
+    保留核心信息（裁决、激活 Agent、响应、能量流），省略冗余快照。
+    Keeps verdict, activated agents, responses, energy flow; drops snapshots.
     """
     compressed: List[Dict[str, Any]] = []
     for w in waves:
@@ -275,14 +272,14 @@ def _compress_waves_for_llm(
             "terminated": w.get("terminated", False),
         }
 
-        # 提取裁决核心信息
+        # 提取裁决核心信息 / Extract verdict essentials
         verdict = w.get("verdict") or {}
         entry["simulated_time"] = verdict.get("simulated_time_elapsed", "")
         entry["global_observation"] = verdict.get("global_observation", "")
         if verdict.get("termination_reason"):
             entry["termination_reason"] = verdict["termination_reason"]
 
-        # 激活的 Agent 列表（ID + 能量 + 激活原因）
+        # 激活的 Agent 列表（ID + 能量 + 激活原因） / Activated agents list
         activated = verdict.get("activated_agents") or []
         entry["activated_agents"] = [
             {
@@ -293,7 +290,7 @@ def _compress_waves_for_llm(
             for a in activated
         ]
 
-        # 跳过的 Agent 列表（仅保留 ID + 原因，便于理解选择性激活）
+        # 跳过的 Agent 列表（仅保留 ID + 原因） / Skipped agents (ID + reason)
         skipped = verdict.get("skipped_agents") or []
         if skipped:
             entry["skipped_agents"] = [
@@ -301,7 +298,7 @@ def _compress_waves_for_llm(
                 for s in skipped
             ]
 
-        # Agent 响应摘要（响应类型 + 输出能量）
+        # Agent 响应摘要（响应类型 + 输出能量） / Agent response summary
         responses = w.get("agent_responses") or {}
         entry["responses"] = {
             aid: {
@@ -311,7 +308,7 @@ def _compress_waves_for_llm(
             for aid, r in responses.items()
         }
 
-        # 仅首轮包含初始快照摘要（后续轮的初始状态可从前轮末尾推断）
+        # 仅首轮包含初始快照摘要 / Only wave 0 includes initial snapshot summary
         if w.get("wave_number") == 0:
             pre = w.get("pre_snapshot") or {}
             entry["initial_state"] = {
@@ -325,7 +322,8 @@ def _compress_waves_for_llm(
     return compressed
 
 
-# 共享的 LLM 系统指令前缀 — 定义输出风格、Agent 命名与术语翻译规范
+# 共享的 LLM 系统指令前缀 — 输出风格、命名与术语翻译规范
+# / Shared LLM system prompt prefix — output style, naming & terminology rules
 _SHARED_SYSTEM_PREFIX = (
     "你是 Ripple CAS（复杂自适应系统）社交传播模拟引擎的专业分析师。\n"
     "你的任务是基于模拟引擎输出的结构化数据，生成人类友好的专业解读。\n\n"
@@ -362,9 +360,9 @@ async def _interpret_background_and_init(
     historical_posts: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """第一轮 LLM 调用：模拟背景与初始环境解读。
+    / Round 1 LLM call: background & initial environment interpretation.
 
-    聚焦范围：simulation_input、init 结果、seed 数据、账号/历史（如有）。
-    输出章节：【模拟背景】【初始环境】
+    输出章节 / Output sections：【模拟背景】【初始环境】
     """
     process = full_data.get("process") or {}
     context: Dict[str, Any] = {
@@ -412,9 +410,9 @@ async def _interpret_propagation_process(
     full_data: Dict[str, Any],
 ) -> str:
     """第二轮 LLM 调用：传播过程与关键事件回顾。
+    / Round 2 LLM call: propagation process & key events review.
 
-    聚焦范围：waves 数据（压缩后）、全局观测。
-    输出章节：【传播过程回顾】【关键传播路径】
+    输出章节 / Output sections：【传播过程回顾】【关键传播路径】
     """
     process = full_data.get("process") or {}
     waves_raw = process.get("waves") or []
@@ -456,9 +454,9 @@ async def _interpret_prediction_and_advice(
     historical_posts: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """第三轮 LLM 调用：关键时间点、数据预测与运营建议。
+    / Round 3 LLM call: key timepoints, predictions & operations advice.
 
-    聚焦范围：prediction、timeline、bifurcation_points、agent_insights。
-    输出章节：【关键时间点解读】【数据预测】【运营建议】
+    输出章节 / Output sections：【关键时间点解读】【数据预测】【运营建议】
     """
     context: Dict[str, Any] = {
         "预测结果": full_data.get("prediction"),
@@ -517,37 +515,35 @@ async def generate_llm_interpretation(
     historical_posts: Optional[List[Dict[str, Any]]] = None,
 ) -> Optional[str]:
     """通过多轮 LLM 调用生成完整的模拟结果解读报告。
+    / Generate full interpretation report via multi-round LLM calls.
 
-    将解读任务科学拆分为三次独立的 LLM 请求，每次聚焦不同维度的数据，
-    避免单次上下文过长导致 LLM 理解漂移：
-
-      第一轮：模拟背景 + 全视者初始环境解读
-      第二轮：传播过程回顾 + 关键 Agent 传播路径
-      第三轮：关键时间点解读 + 数据预测 + 运营建议
-
-    所有 Agent 名称统一转为友好中文格式，所有英文状态/相态翻译为中文。
+    三次独立 LLM 请求，每次聚焦不同维度，避免上下文过长：
+    3 independent LLM requests, each focusing on different dimensions:
+      Round 1: 模拟背景 + 初始环境 / Background + initial environment
+      Round 2: 传播过程 + 关键路径 / Propagation process + key paths
+      Round 3: 时间点 + 预测 + 建议 / Timepoints + predictions + advice
 
     Args:
-        result: simulate() 返回的结果字典（含 output_file 路径）。
-        topic: 选题数据。
-        config_file: LLM 配置文件路径。
-        account: 发布账号画像（可选，增强模拟时提供）。
-        historical_posts: 历史内容数据（可选，增强模拟时提供）。
+        result: simulate() 返回的结果字典。 / Result dict from simulate().
+        topic: 选题数据。 / Topic data.
+        config_file: LLM 配置文件路径。 / LLM config file path.
+        account: 账号画像（可选）。 / Account profile (optional).
+        historical_posts: 历史内容（可选）。 / Post history (optional).
 
     Returns:
-        完整的解读报告文本，或 None（如果 LLM 调用全部失败）。
+        解读报告文本，或 None。 / Report text, or None if all calls fail.
     """
     if not config_file:
         return None
 
-    # 读取完整的模拟 JSON（包含增量记录器写入的详细过程数据）
+    # 读取完整的模拟 JSON / Read full simulation JSON (with incremental process data)
     output_file = result.get("output_file")
     if output_file and Path(output_file).exists():
         full_data = json.loads(
             Path(output_file).read_text(encoding="utf-8"),
         )
     else:
-        # 回退到内存中的结果（不含过程数据，但仍可解读合成结果）
+        # 回退到内存中的结果 / Fallback to in-memory result (no process data)
         full_data = result
 
     try:
@@ -556,10 +552,10 @@ async def generate_llm_interpretation(
         logger.warning("创建 LLM 路由器失败: %s", exc)
         return None
 
-    # 三轮 LLM 调用，每轮聚焦不同维度
+    # 三轮 LLM 调用，每轮聚焦不同维度 / Three LLM rounds, each on different dimensions
     parts: List[str] = []
 
-    # 第一轮：模拟背景与初始环境
+    # 第一轮：模拟背景与初始环境 / Round 1: background & initial environment
     logger.info("解读报告 — 第 1/3 轮：模拟背景与初始环境")
     try:
         part1 = await _interpret_background_and_init(
@@ -570,7 +566,7 @@ async def generate_llm_interpretation(
     except Exception as exc:
         logger.warning("第一轮解读失败（跳过）: %s", exc)
 
-    # 第二轮：传播过程与关键事件
+    # 第二轮：传播过程与关键事件 / Round 2: propagation & key events
     logger.info("解读报告 — 第 2/3 轮：传播过程与关键事件")
     try:
         part2 = await _interpret_propagation_process(router, full_data)
@@ -579,7 +575,7 @@ async def generate_llm_interpretation(
     except Exception as exc:
         logger.warning("第二轮解读失败（跳过）: %s", exc)
 
-    # 第三轮：数据预测与运营建议
+    # 第三轮：数据预测与运营建议 / Round 3: predictions & operations advice
     logger.info("解读报告 — 第 3/3 轮：数据预测与运营建议")
     try:
         part3 = await _interpret_prediction_and_advice(
@@ -597,10 +593,10 @@ async def generate_llm_interpretation(
 
 
 # =============================================================================
-# 示例数据（与 MPlus 字段一致，便于整合时替换为真实查询结果）
+# 示例数据（与 MPlus 字段一致） / Sample data (aligned with MPlus fields)
 # =============================================================================
 
-# 示例选题：职场/生活方式类，适合小红书
+# 示例选题：职场/生活方式类 / Sample topic: workplace/lifestyle
 SAMPLE_TOPIC: Dict[str, Any] = {
     "id": "topic-e2e-001",
     "session_id": None,
@@ -620,7 +616,7 @@ SAMPLE_TOPIC: Dict[str, Any] = {
     "status": "draft",
 }
 
-# 示例账号画像（增强模拟用）
+# 示例账号画像（增强模拟用） / Sample account profile (for enhanced simulation)
 SAMPLE_ACCOUNT: Dict[str, Any] = {
     "id": "account-e2e-001",
     "platform_code": PLATFORM_XIAOHONGSHU,
@@ -638,7 +634,7 @@ SAMPLE_ACCOUNT: Dict[str, Any] = {
     "extra_metrics": None,
 }
 
-# 示例历史内容（增强模拟用）
+# 示例历史内容（增强模拟用） / Sample post history (for enhanced simulation)
 SAMPLE_POSTS: List[Dict[str, Any]] = [
     {
         "id": "post-001",
@@ -672,7 +668,7 @@ SAMPLE_POSTS: List[Dict[str, Any]] = [
 
 
 # =============================================================================
-# 进度回调 — 实时终端显示
+# 进度回调 — 实时终端显示 / Progress callback — real-time terminal display
 # =============================================================================
 
 _PHASE_CN = {
@@ -683,21 +679,21 @@ _PHASE_CN = {
     "SYNTHESIZE": "结果合成",
 }
 
-_BAR_WIDTH = 30  # 进度条字符宽度
+_BAR_WIDTH = 30  # 进度条字符宽度 / Progress bar char width
 
 
 def _progress_bar(progress: float) -> str:
-    """生成文本进度条：[████████░░░░░░░░] 45%"""
+    """生成文本进度条。 / Generate text progress bar: [████████░░░░░░░░] 45%."""
     filled = int(_BAR_WIDTH * progress)
     empty = _BAR_WIDTH - filled
     return f"[{'█' * filled}{'░' * empty}] {progress:>5.1%}"
 
 
 def print_progress(event: SimulationEvent) -> None:
-    """终端进度回调（同步）。
+    """终端进度回调（同步）。 / Terminal progress callback (sync).
 
-    在每个关键事件点打印一行结构化进度信息，包括进度条、阶段、事件详情。
-    外部应用可参考此实现替换为 WebSocket 推送、SSE 流或 UI 更新。
+    每个事件打印进度条 + 阶段 + 详情。可替换为 WebSocket/SSE 推送。
+    Prints progress bar + phase + detail per event. Replace with WS/SSE as needed.
     """
     bar = _progress_bar(event.progress)
     phase_cn = _PHASE_CN.get(event.phase, event.phase)
@@ -749,17 +745,17 @@ def print_progress(event: SimulationEvent) -> None:
 
 
 # =============================================================================
-# 模拟执行
+# 模拟执行 / Simulation execution
 # =============================================================================
 
 def _config_file_path() -> Optional[str]:
-    """返回项目根目录下的 llm_config.yaml 路径；不存在则返回 None。"""
+    """返回项目根目录下的 llm_config.yaml 路径；不存在则返回 None。 / Return llm_config.yaml path or None."""
     p = _REPO_ROOT / "llm_config.yaml"
     return str(p) if p.exists() else None
 
 
 async def run_basic_simulation() -> Dict[str, Any]:
-    """基础模拟：仅选题内容 + 小红书平台，模拟发布后 48 小时。"""
+    """基础模拟：仅选题内容 + 小红书平台，模拟 48 小时。 / Basic: topic + Xiaohongshu, 48h."""
     logger.info("开始基础模拟：仅选题 + 小红书 %d 小时", SIMULATION_HOURS)
 
     event = build_event_from_topic(SAMPLE_TOPIC)
@@ -789,7 +785,7 @@ async def run_basic_simulation() -> Dict[str, Any]:
 
 
 async def run_enhanced_simulation() -> Dict[str, Any]:
-    """增强模拟：选题 + 账号画像 + 历史内容 + 小红书平台，模拟发布后 48 小时。"""
+    """增强模拟：选题 + 账号 + 历史 + 小红书，48 小时。 / Enhanced: topic + account + history, 48h."""
     logger.info(
         "开始增强模拟：选题 + 账号 + 历史内容 + 小红书 %d 小时（%d waves）",
         SIMULATION_HOURS, WAVES_FOR_48H,
@@ -824,7 +820,7 @@ async def run_enhanced_simulation() -> Dict[str, Any]:
 
 
 def _print_result_summary(result: Dict[str, Any], label: str) -> None:
-    """打印模拟运行元信息摘要（不含解读，解读由 LLM 完成）。"""
+    """打印模拟运行元信息摘要。 / Print simulation run metadata summary."""
     print()
     print("=" * 60)
     print(f"  {label} — 运行摘要")
@@ -839,7 +835,7 @@ def _print_result_summary(result: Dict[str, Any], label: str) -> None:
 
 
 # =============================================================================
-# 主入口
+# 主入口 / Main entry
 # =============================================================================
 
 async def _run_and_interpret(
@@ -849,11 +845,11 @@ async def _run_and_interpret(
     account: Optional[Dict[str, Any]] = None,
     historical_posts: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
-    """执行模拟并生成 LLM 解读报告的统一流程。"""
+    """执行模拟并生成 LLM 解读报告的统一流程。 / Run simulation and generate LLM interpretation."""
     result = await run_coro
     _print_result_summary(result, label)
 
-    # 调用多轮 LLM 生成完整解读报告
+    # 调用多轮 LLM 生成完整解读报告 / Multi-round LLM calls for full report
     report = await generate_llm_interpretation(
         result, SAMPLE_TOPIC, config_file,
         account=account,
@@ -892,7 +888,7 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
-    # 允许命令行覆盖 wave 数（仅影响本次运行）
+    # 允许命令行覆盖 wave 数 / Allow CLI override of wave count
     if args.waves != WAVES_FOR_48H:
         WAVES_FOR_48H = args.waves
         logger.info("使用命令行 wave 数: %d", WAVES_FOR_48H)

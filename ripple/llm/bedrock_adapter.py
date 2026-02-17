@@ -1,16 +1,18 @@
 # bedrock_adapter.py
 # =============================================================================
-# AWS Bedrock 适配器
+# AWS Bedrock 适配器 / AWS Bedrock adapter
 #
-# 职责：
-#   - 将 Ripple 的 (system_prompt, user_message) 调用转换为
-#     AWS Bedrock InvokeModel API 请求
-#   - 支持 Anthropic-on-Bedrock（Claude 模型）和 Amazon 模型
-#   - 使用 boto3（可选依赖）处理 SigV4 签名
+# 职责 / Responsibilities:
+#   - 将 Ripple 的 (system_prompt, user_message) 转换为 Bedrock InvokeModel 请求
+#     / Convert Ripple's calls to AWS Bedrock InvokeModel API requests
+#   - 支持 Anthropic-on-Bedrock (Claude) 和 Amazon 模型
+#     / Supports Anthropic-on-Bedrock (Claude) and Amazon models
+#   - 使用 boto3 处理 SigV4 签名 / Uses boto3 for SigV4 signing
 #
-# 依赖：
+# 依赖 / Dependency:
 #   boto3 为可选依赖，通过 pip install ripple[bedrock] 安装。
-#   未安装时导入本模块会正常工作，但实例化时抛出明确错误。
+#   / boto3 is optional; install via pip install ripple[bedrock].
+#   未安装时导入正常，实例化时抛出错误。 / Import works without it; error on instantiation.
 # =============================================================================
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-# boto3 可选导入
+# boto3 可选导入 / Optional boto3 import
 try:
     import boto3
     _HAS_BOTO3 = True
@@ -31,12 +33,12 @@ except ImportError:
 
 
 class BedrockAdapter:
-    """AWS Bedrock 适配器。
+    """AWS Bedrock 适配器。 / AWS Bedrock adapter.
 
     通过 boto3 调用 AWS Bedrock InvokeModel API。
-    支持 Anthropic Claude 模型和 Amazon 自有模型。
-
-    boto3 为可选依赖，未安装时在实例化阶段给出明确错误提示。
+    / Calls AWS Bedrock InvokeModel API via boto3.
+    支持 Anthropic Claude 和 Amazon 自有模型。boto3 为可选依赖。
+    / Supports Anthropic Claude and Amazon models. boto3 is optional.
     """
 
     def __init__(
@@ -48,18 +50,18 @@ class BedrockAdapter:
         max_tokens: int = 4096,
         max_retries: int = 3,
     ):
-        """初始化适配器。
+        """初始化适配器。 / Initialize adapter.
 
         Args:
-            model: Bedrock 模型 ID（如 "anthropic.claude-sonnet-4-20250514-v1:0"）。
-            region_name: AWS 区域（如 "us-east-1"）。
-            aws_profile: AWS CLI profile 名称（可选）。
-            temperature: 生成温度。
-            max_tokens: 最大输出 token 数。
-            max_retries: 最大重试次数。
+            model: Bedrock 模型 ID。 / Bedrock model ID (e.g. "anthropic.claude-sonnet-4-20250514-v1:0").
+            region_name: AWS 区域。 / AWS region (e.g. "us-east-1").
+            aws_profile: AWS CLI profile 名称（可选）。 / AWS CLI profile name (optional).
+            temperature: 生成温度。 / Generation temperature.
+            max_tokens: 最大输出 token 数。 / Max output tokens.
+            max_retries: 最大重试次数。 / Max retry count.
 
         Raises:
-            ImportError: boto3 未安装。
+            ImportError: boto3 未安装。 / boto3 not installed.
         """
         if not _HAS_BOTO3:
             raise ImportError(
@@ -72,7 +74,7 @@ class BedrockAdapter:
         self._max_tokens = max_tokens
         self._max_retries = max_retries
 
-        # 创建 boto3 session 和 client
+        # 创建 boto3 session 和 client / Create boto3 session & client
         session_kwargs: Dict[str, Any] = {}
         if aws_profile:
             session_kwargs["profile_name"] = aws_profile
@@ -89,17 +91,17 @@ class BedrockAdapter:
         system_prompt: str,
         user_message: str,
     ) -> str:
-        """调用 Bedrock InvokeModel API 并返回文本响应。
+        """调用 Bedrock InvokeModel API 并返回文本响应。 / Call Bedrock InvokeModel API and return text.
 
         Args:
-            system_prompt: 系统提示词。
-            user_message: 用户消息。
+            system_prompt: 系统提示词。 / System prompt.
+            user_message: 用户消息。 / User message.
 
         Returns:
-            模型输出的文本内容。
+            模型输出的文本内容。 / Model output text.
 
         Raises:
-            RuntimeError: 调用失败。
+            RuntimeError: 调用失败。 / Call failed.
         """
         import asyncio
 
@@ -109,7 +111,7 @@ class BedrockAdapter:
         last_error: Optional[Exception] = None
         for attempt in range(self._max_retries + 1):
             try:
-                # boto3 是同步的，用 asyncio.to_thread 包装
+                # boto3 是同步的，用 asyncio.to_thread 包装 / boto3 is sync; wrap with asyncio.to_thread
                 response = await asyncio.to_thread(
                     self._client.invoke_model,
                     modelId=self._model,
@@ -137,17 +139,17 @@ class BedrockAdapter:
         )
 
     # =========================================================================
-    # 请求构建与响应解析
+    # 请求构建与响应解析 / Request Building & Response Parsing
     # =========================================================================
 
     def _build_request(
         self, system_prompt: str, user_message: str
     ) -> Dict[str, Any]:
-        """构建请求体。
+        """构建请求体。 / Build request body.
 
-        根据模型类型选择不同的请求格式：
-        - Anthropic Claude：使用 Messages API 格式
-        - 其他模型：使用通用 text completion 格式
+        根据模型类型选择请求格式 / Selects format by model type:
+        - Anthropic Claude → Messages API 格式 / Messages API format
+        - 其他模型 / Others → 通用 text completion 格式 / generic text completion format
         """
         if self._is_anthropic:
             body: Dict[str, Any] = {
@@ -160,7 +162,7 @@ class BedrockAdapter:
                 body["system"] = system_prompt
             return body
 
-        # 通用格式（Amazon Titan 等）
+        # 通用格式（Amazon Titan 等） / Generic format (Amazon Titan, etc.)
         prompt = ""
         if system_prompt:
             prompt = f"{system_prompt}\n\n{user_message}"
@@ -176,9 +178,9 @@ class BedrockAdapter:
         }
 
     def _extract_text(self, response_data: Dict[str, Any]) -> str:
-        """从响应中提取文本内容。"""
+        """从响应中提取文本内容。 / Extract text from response."""
         if self._is_anthropic:
-            # Anthropic Claude on Bedrock 格式
+            # Anthropic Claude on Bedrock 格式 / Anthropic Claude on Bedrock format
             content = response_data.get("content", [])
             if isinstance(content, list) and content:
                 for block in content:
@@ -188,7 +190,7 @@ class BedrockAdapter:
                 if isinstance(first, dict) and "text" in first:
                     return first["text"]
         else:
-            # Amazon Titan 等格式
+            # Amazon Titan 等格式 / Amazon Titan etc. format
             results = response_data.get("results", [])
             if results:
                 return results[0].get("outputText", "")
@@ -201,19 +203,19 @@ class BedrockAdapter:
 
     @classmethod
     def from_endpoint_config(cls, config) -> BedrockAdapter:
-        """从 ModelEndpointConfig 创建适配器实例。
+        """从 ModelEndpointConfig 创建适配器实例。 / Create adapter from ModelEndpointConfig.
 
         Args:
-            config: ModelEndpointConfig 实例。
-                config.extra 可包含：
-                - region_name: AWS 区域
-                - aws_profile: AWS CLI profile 名称
+            config: ModelEndpointConfig 实例。 / ModelEndpointConfig instance.
+                config.extra 可包含 / config.extra may contain:
+                - region_name: AWS 区域 / AWS region
+                - aws_profile: AWS CLI profile 名称 / AWS CLI profile name
 
         Returns:
-            BedrockAdapter 实例。
+            BedrockAdapter 实例。 / BedrockAdapter instance.
 
         Raises:
-            ImportError: boto3 未安装。
+            ImportError: boto3 未安装。 / boto3 not installed.
         """
         extra = config.extra or {}
 

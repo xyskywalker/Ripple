@@ -1,6 +1,6 @@
 # engine/__init__.py
 # =============================================================================
-# Ripple 引擎模块 — 全视者中心制运行时。
+# Ripple 引擎模块 — 全视者中心制运行时。 / Engine module — Omniscient-driven runtime.
 # =============================================================================
 
 from ripple.engine.runtime import SimulationRuntime, ProgressCallback

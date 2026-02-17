@@ -1,23 +1,25 @@
 # validator.py
 # =============================================================================
-# Skill 校验错误定义。
+# Skill 校验错误定义。 / Skill validation error definitions.
 #
 # CAS 参数由全视者 Agent 在运行时动态决定，无需静态校验。
+# / CAS params decided dynamically by Omniscient at runtime; no static validation needed.
 # 本模块仅保留错误码和异常类，供 SkillManager 使用。
+# / This module only retains error codes and exception class for SkillManager.
 # =============================================================================
 
 from __future__ import annotations
 
 
 # -----------------------------------------------------------------------------
-# 错误码
+# 错误码 / Error codes
 # -----------------------------------------------------------------------------
 SKILL_NOT_FOUND = "SKILL_NOT_FOUND"
 SKILL_SCHEMA_INVALID = "SKILL_SCHEMA_INVALID"
 
 
 class SkillValidationError(Exception):
-    """Skill 校验错误 — 携带错误码与诊断信息。"""
+    """Skill 校验错误 — 携带错误码与诊断信息。 / Skill validation error — carries error code and diagnostic message."""
 
     def __init__(self, code: str, message: str) -> None:
         self.code = code

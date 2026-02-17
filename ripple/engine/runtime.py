@@ -1,11 +1,12 @@
-"""Ripple 引擎运行时。
+"""Ripple 引擎运行时。 / Ripple engine runtime.
 
-职责：
-1. 编排（Orchestration）—— 按 5-Phase 调用全视者和星海 Agent
-2. 状态管理（State Management）—— 维护 Field、记录轨迹
-3. 安全防护（Safety Guards）—— 死循环检测、输出校验
+职责 / Responsibilities:
+1. 编排（Orchestration）—— 按 5-Phase 调用全视者和星海 Agent / Orchestrate 5-Phase calls to Omniscient & Star/Sea agents
+2. 状态管理（State Management）—— 维护 Field、记录轨迹 / Maintain Field state & trace records
+3. 安全防护（Safety Guards）—— 死循环检测、输出校验 / Deadloop detection & output validation
 
 不负责：能量计算、激活判定、衰减公式、CAS 参数管理。
+/ Not responsible for: energy calc, activation logic, decay formulas, CAS param management.
 """
 
 import asyncio
@@ -31,17 +32,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# 类型别名：支持同步和异步回调
+# 类型别名：支持同步和异步回调 / Type alias: supports sync and async callbacks
 ProgressCallback = Union[
     Callable[[SimulationEvent], Awaitable[None]],
     Callable[[SimulationEvent], None],
 ]
 
-SAFETY_WAVE_MULTIPLIER = 3  # 安全上限 = estimated_total_waves * 此系数
+SAFETY_WAVE_MULTIPLIER = 3  # 安全上限 = estimated_total_waves * 此系数 / Safety cap = estimated_total_waves * this multiplier
 
 
 def _extract_float(value: Any, default: float = 0.0) -> float:
-    """从 LLM 输出中提取浮点数，容忍嵌套字典或异常类型。"""
+    """从 LLM 输出中提取浮点数，容忍嵌套字典或异常类型。 / Extract float from LLM output; tolerates nested dicts or unusual types."""
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):
@@ -50,7 +51,7 @@ def _extract_float(value: Any, default: float = 0.0) -> float:
         except ValueError:
             return default
     if isinstance(value, dict):
-        # LLM 有时会返回 {"value": 0.8, "reason": "..."} 之类的嵌套结构
+        # LLM 有时会返回 {"value": 0.8, "reason": "..."} 之类的嵌套结构 / LLM sometimes returns nested structures like {"value": 0.8, ...}
         for key in ("value", "score", "energy", "initial_energy"):
             if key in value and isinstance(value[key], (int, float)):
                 return float(value[key])
@@ -58,7 +59,7 @@ def _extract_float(value: Any, default: float = 0.0) -> float:
 
 
 def _extract_int(value: Any, default: int = 0) -> int:
-    """从 LLM 输出中提取整数，容忍嵌套字典或异常类型。"""
+    """从 LLM 输出中提取整数，容忍嵌套字典或异常类型。 / Extract int from LLM output; tolerates nested dicts or unusual types."""
     if isinstance(value, int):
         return value
     if isinstance(value, float):
@@ -76,18 +77,18 @@ def _extract_int(value: Any, default: int = 0) -> int:
 
 
 def _parse_hours(s: str) -> float:
-    """Parse a time string like "4h", "48h", "2.5h", "1d" into hours.
+    """解析时间字符串为小时数。 / Parse a time string like "4h", "48h", "2.5h", "1d" into hours.
 
-    Returns 0.0 if the string cannot be parsed.
+    无法解析时返回 0.0。 / Returns 0.0 if the string cannot be parsed.
     """
     if not s or not isinstance(s, str):
         return 0.0
     s = s.strip().lower()
-    # Match patterns like "4h", "2.5h", "48h"
+    # 匹配 "4h", "2.5h", "48h" 格式 / Match patterns like "4h", "2.5h", "48h"
     m = re.match(r"^(\d+(?:\.\d+)?)\s*h$", s)
     if m:
         return float(m.group(1))
-    # Match patterns like "1d", "2d"
+    # 匹配 "1d", "2d" 格式 / Match patterns like "1d", "2d"
     m = re.match(r"^(\d+(?:\.\d+)?)\s*d$", s)
     if m:
         return float(m.group(1)) * 24.0
@@ -95,7 +96,7 @@ def _parse_hours(s: str) -> float:
 
 
 def _empty_agent_stats() -> Dict[str, Any]:
-    """返回未被激活 Agent 的默认状态。"""
+    """返回未被激活 Agent 的默认状态。 / Return default stats for an unactivated agent."""
     return {
         "activation_count": 0,
         "last_wave": None,
@@ -106,17 +107,17 @@ def _empty_agent_stats() -> Dict[str, Any]:
 
 
 class SimulationRuntime:
-    """Ripple 模拟运行时编排器。"""
+    """Ripple 模拟运行时编排器。 / Ripple simulation runtime orchestrator."""
 
-    # 各阶段在总进度中的权重（INIT + SEED + RIPPLE + OBSERVE + SYNTHESIZE = 1.0）
+    # 各阶段在总进度中的权重 / Phase weights in total progress (sum = 1.0)
     _PHASE_WEIGHTS = {
         "INIT": 0.05,
         "SEED": 0.05,
-        "RIPPLE": 0.70,  # 占大头，内部按 wave 细分
+        "RIPPLE": 0.70,  # 占大头，内部按 wave 细分 / Largest share, subdivided by wave internally
         "OBSERVE": 0.10,
         "SYNTHESIZE": 0.10,
     }
-    _PHASE_OFFSETS = {}  # 运行时计算
+    _PHASE_OFFSETS = {}  # 运行时计算 / Computed at runtime
 
     def __init__(
         self,
@@ -125,13 +126,13 @@ class SimulationRuntime:
         sea_caller: Optional[Callable[..., Awaitable[str]]] = None,
         skill_profile: str = "",
         on_progress: Optional[ProgressCallback] = None,
-        # 增量记录器：模拟过程中动态写入 JSON 文件
+        # 增量记录器：模拟过程中动态写入 JSON 文件 / Incremental recorder: writes JSON dynamically during simulation
         recorder: Optional["SimulationRecorder"] = None,
-        # 向后兼容：旧签名 agent_caller 同时用于 star 和 sea
+        # 向后兼容：旧签名 agent_caller 同时用于 star 和 sea / Backward compat: legacy agent_caller used for both star and sea
         agent_caller: Optional[Callable[..., Awaitable[str]]] = None,
     ):
         self._omniscient = OmniscientAgent(llm_caller=omniscient_caller)
-        # 兼容旧 API：如果传了 agent_caller，star/sea 未传则用它
+        # 兼容旧 API：如果传了 agent_caller，star/sea 未传则用它 / Compat: use agent_caller for star/sea if not provided
         if agent_caller is not None:
             self._star_caller = star_caller or agent_caller
             self._sea_caller = sea_caller or agent_caller
@@ -151,14 +152,14 @@ class SimulationRuntime:
         self._seed_content: str = ""
         self._seed_energy: float = 0.0
 
-        # 预计算阶段进度偏移量
+        # 预计算阶段进度偏移量 / Pre-compute phase progress offsets
         offset = 0.0
         for phase in ("INIT", "SEED", "RIPPLE", "OBSERVE", "SYNTHESIZE"):
             self._PHASE_OFFSETS[phase] = offset
             offset += self._PHASE_WEIGHTS[phase]
 
     async def _emit(self, event: SimulationEvent) -> None:
-        """触发进度回调（支持同步和异步回调）。"""
+        """触发进度回调（支持同步和异步回调）。 / Emit progress callback (sync and async)."""
         if self._on_progress is None:
             return
         result = self._on_progress(event)
@@ -166,9 +167,9 @@ class SimulationRuntime:
             await result
 
     def _progress(self, phase: str, phase_fraction: float = 0.0) -> float:
-        """计算总进度值 (0.0 ~ 1.0)。
+        """计算总进度值 (0.0 ~ 1.0)。 / Compute total progress (0.0 ~ 1.0).
 
-        phase_fraction: 当前阶段内部的完成比例 (0.0 ~ 1.0)。
+        phase_fraction: 当前阶段内部的完成比例 / Completion ratio within current phase (0.0 ~ 1.0).
         """
         base = self._PHASE_OFFSETS.get(phase, 0.0)
         weight = self._PHASE_WEIGHTS.get(phase, 0.0)
@@ -179,11 +180,11 @@ class SimulationRuntime:
         simulation_input: Dict[str, Any],
         run_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """执行完整模拟。
+        """执行完整模拟。 / Execute full simulation.
 
         Args:
-            simulation_input: 模拟输入参数。
-            run_id: 可选的外部指定 run_id。若不传则自动生成。
+            simulation_input: 模拟输入参数。 / Simulation input parameters.
+            run_id: 可选的外部指定 run_id。若不传则自动生成。 / Optional external run_id; auto-generated if omitted.
         """
         run_id = run_id or str(uuid.uuid4())[:8]
         logger.info(f"[{run_id}] 开始模拟")
@@ -205,7 +206,7 @@ class SimulationRuntime:
             wave_time_window = f"{wave_time_window}h"
         horizon_str = simulation_input.get("simulation_horizon", "")
 
-        # Deterministic wave calculation
+        # 确定性 wave 计算 / Deterministic wave calculation
         horizon_hours = _parse_hours(horizon_str)
         window_hours = _parse_hours(wave_time_window)
 
@@ -226,7 +227,7 @@ class SimulationRuntime:
 
         max_waves = estimated_waves * SAFETY_WAVE_MULTIPLIER
 
-        # Store for use in snapshot and verdict calls
+        # 存储以供快照和裁决调用使用 / Store for use in snapshot and verdict calls
         self._wave_time_window = wave_time_window
         self._simulation_horizon = horizon_str
         self._energy_decay_per_wave = _extract_float(
@@ -240,7 +241,7 @@ class SimulationRuntime:
             f"预估 {estimated_waves} waves (安全上限 {max_waves})"
         )
 
-        # 增量记录：INIT 阶段结果
+        # 增量记录：INIT 阶段结果 / Incremental record: INIT phase result
         if self._recorder:
             self._recorder.record_init(
                 init_result, estimated_waves, max_waves,
@@ -286,7 +287,7 @@ class SimulationRuntime:
         self._seed_content = seed_content
         self._seed_energy = seed_energy
 
-        # 增量记录：SEED 阶段结果
+        # 增量记录：SEED 阶段结果 / Incremental record: SEED phase result
         if self._recorder:
             self._recorder.record_seed(seed_content, seed_energy)
 
@@ -300,7 +301,7 @@ class SimulationRuntime:
             },
         ))
 
-        # Phase 2: RIPPLE (统一涟漪循环)
+        # Phase 2: RIPPLE (统一涟漪循环) / Unified ripple loop
         wave_count = 0
         content_preview = seed_ripple.content[:50] if seed_ripple.content else ""
         history_lines = [f"种子涟漪已注入: '{content_preview}', "
@@ -323,7 +324,7 @@ class SimulationRuntime:
                 wave=wave_count, total_waves=estimated_waves,
             ))
 
-            # 增量记录：wave 启动前的场快照
+            # 增量记录：wave 启动前的场快照 / Incremental record: field snapshot before wave starts
             pre_snapshot = self._build_snapshot()
             if self._recorder:
                 self._recorder.record_wave_start(wave_count, pre_snapshot)
@@ -343,7 +344,7 @@ class SimulationRuntime:
                     f"[{run_id}] 传播终止于 wave {wave_count}: "
                     f"{verdict.termination_reason or '全视者判定终止'}"
                 )
-                # 增量记录：wave 终止（传播结束）
+                # 增量记录：wave 终止（传播结束） / Incremental record: wave terminated (propagation ends)
                 if self._recorder:
                     self._recorder.record_wave_end(
                         wave_number=wave_count,
@@ -362,8 +363,8 @@ class SimulationRuntime:
                 ))
                 break
 
-            # Wave 0 Sea guard: in CAS, seed perturbation must reach
-            # at least one group (Sea) agent
+            # Wave 0 Sea 保护: CAS 中种子扰动必须到达至少一个群体 Agent
+            # / Wave 0 Sea guard: in CAS, seed perturbation must reach at least one group (Sea) agent
             if wave_count == 0:
                 has_sea = any(
                     a.agent_id in self._seas
@@ -385,7 +386,7 @@ class SimulationRuntime:
                         f"Wave 0 Sea guard: auto-injected {first_sea_id}"
                     )
 
-            # 通知每个被激活的 Agent
+            # 通知每个被激活的 Agent / Notify each activated agent
             for activation in verdict.activated_agents:
                 aid = activation.agent_id
                 atype = "sea" if aid in self._seas else "star"
@@ -397,12 +398,12 @@ class SimulationRuntime:
                     detail={"energy": activation.incoming_ripple_energy},
                 ))
 
-            # 并行激活被选中的 Agent
+            # 并行激活被选中的 Agent / Activate selected agents in parallel
             responses = await self._activate_agents(
                 verdict, ripple_content=seed_ripple.content,
             )
 
-            # 通知每个 Agent 的响应
+            # 通知每个 Agent 的响应 / Notify each agent's response
             for aid, resp in responses.items():
                 atype = "sea" if aid in self._seas else "star"
                 await self._emit(SimulationEvent(
@@ -413,7 +414,7 @@ class SimulationRuntime:
                     detail=resp,
                 ))
 
-            # 记录本轮
+            # 记录本轮 / Record this wave
             record = WaveRecord(
                 wave_number=wave_count,
                 verdict=verdict,
@@ -422,7 +423,7 @@ class SimulationRuntime:
             )
             self._wave_records.append(record)
 
-            # 增量记录：wave 完成后的场快照和完整数据
+            # 增量记录：wave 完成后的场快照和完整数据 / Incremental record: post-wave snapshot and full data
             if self._recorder:
                 self._recorder.record_wave_end(
                     wave_number=wave_count,
@@ -431,7 +432,7 @@ class SimulationRuntime:
                     post_snapshot=self._build_snapshot(),
                 )
 
-            # 更新历史
+            # 更新历史 / Update history
             for aid, resp in responses.items():
                 history_lines.append(
                     f"Wave {wave_count}: {aid} → "
@@ -473,7 +474,7 @@ class SimulationRuntime:
             full_history="\n".join(history_lines),
         )
 
-        # 增量记录：OBSERVE 阶段结果
+        # 增量记录：OBSERVE 阶段结果 / Incremental record: OBSERVE phase result
         if self._recorder:
             self._recorder.record_observation(observation)
 
@@ -484,10 +485,10 @@ class SimulationRuntime:
         ))
 
         # Phase 4: FEEDBACK & RECORD
-        # 拓扑更新由全视者建议（如果有）
-        # ... 持久化逻辑 ...
+        # 拓扑更新由全视者建议（如果有） / Topology update by Omniscient suggestion (if any)
+        # ... 持久化逻辑 ... / ... persistence logic ...
 
-        # 合成结果
+        # 合成结果 / Synthesize result
         logger.info(f"[{run_id}] ━━━ SYNTHESIZE 阶段 ━━━")
         await self._emit(SimulationEvent(
             type="phase_start", phase="SYNTHESIZE", run_id=run_id,
@@ -505,7 +506,7 @@ class SimulationRuntime:
         result["run_id"] = run_id
         result["wave_records_count"] = len(self._wave_records)
 
-        # 增量记录：SYNTHESIZE 阶段结果（合成数据写入顶层键以保持向后兼容）
+        # 增量记录：SYNTHESIZE 阶段结果（合成数据写入顶层键以保持向后兼容） / Incremental record: SYNTHESIZE result (top-level keys for backward compat)
         if self._recorder:
             self._recorder.record_synthesis(result)
 
@@ -522,7 +523,7 @@ class SimulationRuntime:
         return result
 
     def _create_agents(self, init_result: Dict[str, Any]) -> None:
-        """根据全视者 INIT 结果创建星海 Agent。"""
+        """根据全视者 INIT 结果创建星海 Agent。 / Create Star/Sea agents from Omniscient INIT result."""
         for sc in init_result.get("star_configs", []):
             self._stars[sc["id"]] = StarAgent(
                 agent_id=sc["id"],
@@ -539,7 +540,7 @@ class SimulationRuntime:
     async def _activate_agents(
         self, verdict: OmniscientVerdict, ripple_content: str = "",
     ) -> Dict[str, Dict[str, Any]]:
-        """并行激活被裁决选中的 Agent。"""
+        """并行激活被裁决选中的 Agent。 / Activate verdict-selected agents in parallel."""
         known_ids = set(self._stars.keys()) | set(self._seas.keys())
         if verdict.activated_agents:
             activated_ids = [a.agent_id for a in verdict.activated_agents]
@@ -587,7 +588,7 @@ class SimulationRuntime:
         return results
 
     def _build_snapshot(self) -> Dict[str, Any]:
-        """构建当前 Field 快照供全视者参考。"""
+        """构建当前 Field 快照供全视者参考。 / Build current Field snapshot for Omniscient reference."""
         agent_stats = self._extract_agent_stats()
 
         snapshot: Dict[str, Any] = {
@@ -620,7 +621,7 @@ class SimulationRuntime:
         return snapshot
 
     def _extract_agent_stats(self) -> Dict[str, Dict[str, Any]]:
-        """从 wave_records 中提取每个 Agent 的累积状态。"""
+        """从 wave_records 中提取每个 Agent 的累积状态。 / Extract cumulative stats per agent from wave_records."""
         stats: Dict[str, Dict[str, Any]] = {}
         for record in self._wave_records:
             for activation in record.verdict.activated_agents:
@@ -645,26 +646,26 @@ class SimulationRuntime:
     def _build_history_with_window(
         self, seed_line: str, window_size: int = 5,
     ) -> str:
-        """构建带滑动窗口的传播历史。
+        """构建带滑动窗口的传播历史。 / Build propagation history with sliding window.
 
-        最近 window_size 轮保留详细记录（含能量），
-        更早的轮次压缩为摘要。
+        最近 window_size 轮保留详细记录（含能量），更早的轮次压缩为摘要。
+        / Recent window_size waves keep detailed records; older waves compressed to summary.
         """
         lines = [seed_line]
 
         if not self._wave_records:
             return "\n".join(lines)
 
-        # 压缩摘要：超出窗口的旧记录
+        # 压缩摘要：超出窗口的旧记录 / Compressed summary: old records beyond window
         cutoff = len(self._wave_records) - window_size
         if cutoff > 0:
             old_records = self._wave_records[:cutoff]
             summary = self._compress_history(old_records)
             lines.append(summary)
 
-        # 详细记录：最近 window_size 轮
+        # 详细记录：最近 window_size 轮 / Detailed records: last window_size waves
         recent_records = self._wave_records[max(0, cutoff):]
-        # 计算每个 Agent 截止到详细窗口起始时的激活次数
+        # 计算每个 Agent 截止到详细窗口起始时的激活次数 / Count activations per agent before detail window
         counts_before: Dict[str, int] = {}
         if cutoff > 0:
             for record in self._wave_records[:cutoff]:
@@ -692,7 +693,7 @@ class SimulationRuntime:
 
     @staticmethod
     def _compress_history(records: List[WaveRecord]) -> str:
-        """将多轮 wave 记录压缩为摘要行。"""
+        """将多轮 wave 记录压缩为摘要行。 / Compress multiple wave records into a summary line."""
         first_wave = records[0].wave_number
         last_wave = records[-1].wave_number
         agent_counts: Dict[str, int] = {}

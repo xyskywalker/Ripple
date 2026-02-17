@@ -1,21 +1,18 @@
 # anthropic_adapter.py
 # =============================================================================
-# Anthropic Messages API 适配器
+# Anthropic Messages API 适配器 / Anthropic Messages API adapter
 #
-# 职责：
-#   - 将 Ripple 的 (system_prompt, user_message) 调用转换为
-#     Anthropic Messages API 格式的 HTTP 请求
-#   - 解析 Messages API 的返回结构并提取文本内容
-#   - 直连 https://api.anthropic.com/v1/messages
+# 职责 / Responsibilities:
+#   - 将 Ripple 的 (system_prompt, user_message) 转换为 Anthropic Messages API 请求
+#     / Convert Ripple's calls to Anthropic Messages API HTTP requests
+#   - 解析返回结构并提取文本内容 / Parse response and extract text
+#   - 直连 / Direct connection: https://api.anthropic.com/v1/messages
 #
-# 请求格式（Anthropic Messages API）：
-#   {"model": "claude-sonnet-4-20250514", "max_tokens": 4096,
-#    "system": "...", "messages": [{"role": "user", "content": "..."}]}
-#   -> response["content"][0]["text"]
+# 请求格式 / Request format (Anthropic Messages API):
+#   {"model": "...", "max_tokens": 4096, "system": "...", "messages": [...]}
+#   → response["content"][0]["text"]
 #
-# 认证方式：
-#   - x-api-key: <key>
-#   - anthropic-version: 2023-06-01
+# 认证方式 / Auth: x-api-key + anthropic-version: 2023-06-01
 # =============================================================================
 
 from __future__ import annotations
@@ -28,19 +25,21 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Anthropic API 默认端点
+# Anthropic API 默认端点 / Default Anthropic API endpoint
 _DEFAULT_ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 
-# Anthropic API 版本
+# Anthropic API 版本 / Anthropic API version
 _ANTHROPIC_VERSION = "2023-06-01"
 
 
 class AnthropicAdapter:
     """Anthropic Messages API 适配器。
+    / Anthropic Messages API adapter.
 
-    通过 httpx 异步 HTTP 直连调用 Anthropic Messages API 端点。
-    将 Ripple 标准的 (system_prompt, user_message) 调用格式
-    转换为 Messages API 要求的请求结构。
+    通过 httpx 异步 HTTP 直连调用 Anthropic Messages API。
+    / Async HTTP calls via httpx to Anthropic Messages API.
+    将 Ripple 标准调用格式转换为 Messages API 请求结构。
+    / Converts Ripple's (system_prompt, user_message) to Messages API format.
     """
 
     def __init__(
@@ -53,16 +52,16 @@ class AnthropicAdapter:
         timeout: float = 120.0,
         max_retries: int = 3,
     ):
-        """初始化适配器。
+        """初始化适配器。 / Initialize adapter.
 
         Args:
-            api_key: Anthropic API 密钥。
-            model: 模型名称（如 "claude-sonnet-4-20250514"）。
-            url: API 端点 URL（可选，默认为 Anthropic 官方端点）。
-            temperature: 生成温度。
-            max_tokens: 最大输出 token 数。
-            timeout: 请求超时时间（秒）。
-            max_retries: 最大重试次数。
+            api_key: Anthropic API 密钥。 / Anthropic API key.
+            model: 模型名称。 / Model name (e.g. "claude-sonnet-4-20250514").
+            url: API 端点 URL（可选，默认官方端点）。 / Endpoint URL (optional, defaults to official).
+            temperature: 生成温度。 / Generation temperature.
+            max_tokens: 最大输出 token 数。 / Max output tokens.
+            timeout: 请求超时时间（秒）。 / Request timeout in seconds.
+            max_retries: 最大重试次数。 / Max retry count.
         """
         self._endpoint = self._resolve_endpoint(url)
         self._api_key = api_key
@@ -77,18 +76,18 @@ class AnthropicAdapter:
         system_prompt: str,
         user_message: str,
     ) -> str:
-        """调用 Anthropic Messages API 并返回文本响应。
+        """调用 Anthropic Messages API 并返回文本响应。 / Call Anthropic Messages API and return text.
 
         Args:
-            system_prompt: 系统提示词。
-            user_message: 用户消息。
+            system_prompt: 系统提示词。 / System prompt.
+            user_message: 用户消息。 / User message.
 
         Returns:
-            模型输出的文本内容。
+            模型输出的文本内容。 / Model output text.
 
         Raises:
-            httpx.HTTPStatusError: HTTP 请求失败。
-            ValueError: 响应格式无法解析。
+            httpx.HTTPStatusError: HTTP 请求失败。 / HTTP request failed.
+            ValueError: 响应格式无法解析。 / Unparseable response format.
         """
         request_body = self._build_request(system_prompt, user_message)
 
@@ -145,15 +144,15 @@ class AnthropicAdapter:
         )
 
     # =========================================================================
-    # URL 解析
+    # URL 解析 / URL Resolution
     # =========================================================================
 
     @staticmethod
     def _resolve_endpoint(url: Optional[str]) -> str:
-        """解析端点 URL。
+        """解析端点 URL。 / Resolve endpoint URL.
 
-        如果 url 为空或 None，使用默认 Anthropic 端点。
-        如果 url 路径中不含 /messages，自动追加。
+        如果 url 为空则使用默认端点；路径中不含 /messages 则自动追加。
+        / Uses default endpoint if empty; auto-appends /messages if missing.
         """
         if not url:
             return _DEFAULT_ANTHROPIC_URL
@@ -167,13 +166,13 @@ class AnthropicAdapter:
         return urlunparse(parsed._replace(path=path))
 
     # =========================================================================
-    # 请求构建与响应解析
+    # 请求构建与响应解析 / Request Building & Response Parsing
     # =========================================================================
 
     def _build_request(
         self, system_prompt: str, user_message: str
     ) -> Dict[str, Any]:
-        """构建 Anthropic Messages API 请求体。"""
+        """构建 Anthropic Messages API 请求体。 / Build Anthropic Messages API request body."""
         body: Dict[str, Any] = {
             "model": self._model,
             "max_tokens": self._max_tokens,
@@ -188,16 +187,16 @@ class AnthropicAdapter:
 
     @staticmethod
     def _extract_text(response_data: Dict[str, Any]) -> str:
-        """从 Anthropic Messages API 响应中提取文本内容。
+        """从 Anthropic Messages API 响应中提取文本内容。 / Extract text from Anthropic Messages response.
 
-        标准格式：response["content"][0]["text"]
+        标准格式 / Standard: response["content"][0]["text"]
         """
         content = response_data.get("content", [])
         if isinstance(content, list) and content:
             for block in content:
                 if isinstance(block, dict) and block.get("type") == "text":
                     return block.get("text", "")
-            # 如果没有找到 type=text，取第一个 block 的 text
+            # 如果没有找到 type=text，取第一个 block 的 text / Fallback: first block's text
             first = content[0]
             if isinstance(first, dict) and "text" in first:
                 return first["text"]
@@ -210,16 +209,16 @@ class AnthropicAdapter:
 
     @classmethod
     def from_endpoint_config(cls, config) -> AnthropicAdapter:
-        """从 ModelEndpointConfig 创建适配器实例。
+        """从 ModelEndpointConfig 创建适配器实例。 / Create adapter from ModelEndpointConfig.
 
         Args:
-            config: ModelEndpointConfig 实例。
+            config: ModelEndpointConfig 实例。 / ModelEndpointConfig instance.
 
         Returns:
-            AnthropicAdapter 实例。
+            AnthropicAdapter 实例。 / AnthropicAdapter instance.
 
         Raises:
-            ValueError: 缺少必要的配置（api_key）。
+            ValueError: 缺少必要的配置（api_key）。 / Missing required config (api_key).
         """
         if not config.api_key:
             raise ValueError(

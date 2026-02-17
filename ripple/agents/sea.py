@@ -1,14 +1,15 @@
-"""海 Agent —— 群体行为模拟器。
+"""海 Agent —— 群体行为模拟器。 / Sea Agent — crowd behavior simulator.
 
-海 Agent 只知道：
-1. 自己代表的群体画像
-2. 收到的涟漪
-3. 当前群体情绪（滑动窗口记忆）
+海 Agent 只知道： / Sea Agent only knows:
+1. 自己代表的群体画像 / Its represented crowd profile
+2. 收到的涟漪 / Received ripples
+3. 当前群体情绪（滑动窗口记忆） / Current crowd sentiment (sliding-window memory)
 
 不知道：全局状态、其他 Agent、传播全貌、平台参数。
+/ Unaware of: global state, other agents, propagation overview, platform params.
 
-Prompt 中显式引入群体内部差异性，避免 LLM 从众倾向过强
-（借鉴 OASIS 论文发现）。
+Prompt 中显式引入群体内部差异性，避免 LLM 从众倾向过强（借鉴 OASIS 论文发现）。
+/ Explicitly introduces intra-group diversity in prompts to counter LLM conformity bias (per OASIS findings).
 """
 
 import json
@@ -37,7 +38,7 @@ FALLBACK_SEA_RESPONSE = {
 
 
 class SeaAgent:
-    """海 Agent：群体行为模拟器。"""
+    """海 Agent：群体行为模拟器。 / Sea Agent: crowd behavior simulator."""
 
     def __init__(
         self,
@@ -83,7 +84,7 @@ class SeaAgent:
                     "ripple_source": ripple_source,
                     "response": response,
                 })
-                # 滑动窗口
+                # 滑动窗口 / Sliding window
                 if len(self.memory) > self._memory_window:
                     self.memory = self.memory[-self._memory_window:]
                 return response

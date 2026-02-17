@@ -1,5 +1,5 @@
 # skills/
-# Skill 发现、加载与管理模块。
+# Skill 发现、加载与管理模块。 / Skill discovery, loading & management.
 
 from ripple.skills.manager import LoadedSkill, SkillManager
 from ripple.skills.validator import (

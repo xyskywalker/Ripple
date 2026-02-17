@@ -9,11 +9,16 @@
 </p>
 
 <p align="center">
+  <a href="README.md">中文</a> | <a href="README_EN.md">English</a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/version-0.1.0-green" alt="Version">
   <img src="https://img.shields.io/badge/tests-148%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-orange" alt="License">
   <img src="https://img.shields.io/badge/LLM-Anthropic%20%7C%20OpenAI%20%7C%20Bedrock-purple" alt="LLM">
+  <a href="mailto:xypluslab@gmail.com"><img src="https://img.shields.io/badge/email-xypluslab%40gmail.com-blue?logo=gmail&logoColor=white" alt="Email"></a>
 </p>
 
 ---
@@ -34,10 +39,9 @@
 11. [工程结构](#-工程结构)
 12. [项目状态](#-项目状态)
 13. [技术栈](#-技术栈)
-14. [文档索引](#-文档索引)
-15. [灵感来源：OASIS](#-灵感来源oasis)
-16. [致谢](#-致谢)
-17. [许可证](#-许可证)
+14. [灵感来源：OASIS](#-灵感来源oasis)
+15. [致谢](#-致谢)
+16. [许可证](#-许可证)
 
 </details>
 
@@ -441,12 +445,7 @@ tests/                       # ✅ 测试体系（148 用例，全部通过）
 └── skills/                 #   Skill 加载测试
 
 examples/                    # 📖 示例
-├── e2e_simulation_xiaohongshu.py  # 小红书完整模拟示例
-└── llm_hello.py                    # LLM 连通性测试
-
-docs/                        # 📚 设计文档
-├── plans/                  #   架构设计 & 实施计划
-└── paper-reviews/          #   论文阅读笔记
+└── e2e_simulation_xiaohongshu.py  # 小红书完整模拟示例
 ```
 
 ---
@@ -481,39 +480,6 @@ docs/                        # 📚 设计文档
 | 输出格式 | JSON | 轻量、可读、无外部数据库依赖 |
 | 测试框架 | pytest + pytest-asyncio | 标准异步测试方案 |
 | Agent 框架 | **不使用** | 极简设计，纯原生 Python 实现 |
-
----
-
-## 📚 文档索引
-
-### 设计文档
-
-| 文档 | 说明 |
-|------|------|
-| [`2026-02-15-ripple-omniscient-architecture-design.md`](docs/plans/2026-02-15-ripple-omniscient-architecture-design.md) | 全视者中心制架构设计 |
-| [`2026-02-15-ripple-implementation-plan.md`](docs/plans/2026-02-15-ripple-implementation-plan.md) | 实施计划 |
-| [`2026-02-16-cas-accumulative-activation-design.md`](docs/plans/2026-02-16-cas-accumulative-activation-design.md) | CAS 累积激活机制设计 |
-| [`2026-02-16-platform-profile-injection-design.md`](docs/plans/2026-02-16-platform-profile-injection-design.md) | 平台画像注入设计 |
-| [`2026-02-16-prediction-optimization-design.md`](docs/plans/2026-02-16-prediction-optimization-design.md) | 预测优化设计 |
-
-### 论文阅读笔记
-
-| 文档 | 说明 |
-|------|------|
-| [`OASIS-open-agent-social-interaction-simulations.md`](docs/paper-reviews/OASIS-open-agent-social-interaction-simulations.md) | OASIS 论文阅读笔记 |
-| [`generative-agents-interactive-simulacra.md`](docs/paper-reviews/generative-agents-interactive-simulacra.md) | Generative Agents 论文阅读笔记 |
-
-### 平台画像
-
-| 文档 | 说明 |
-|------|------|
-| [`xiaohongshu.md`](skills/social-media/platforms/xiaohongshu.md) | 🔴 小红书平台画像 |
-| [`douyin.md`](skills/social-media/platforms/douyin.md) | 🎵 抖音平台画像 |
-| [`weibo.md`](skills/social-media/platforms/weibo.md) | 🔥 微博平台画像 |
-| [`bilibili.md`](skills/social-media/platforms/bilibili.md) | 📺 B 站平台画像 |
-| [`zhihu.md`](skills/social-media/platforms/zhihu.md) | 💡 知乎平台画像 |
-| [`wechat.md`](skills/social-media/platforms/wechat.md) | 💬 微信公众号平台画像 |
-| [`generic.md`](skills/social-media/platforms/generic.md) | 🌐 通用平台画像 |
 
 ---
 

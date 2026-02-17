@@ -1,44 +1,33 @@
 # responses_adapter.py
 # =============================================================================
-# OpenAI Responses API 适配器
+# OpenAI Responses API 适配器 / OpenAI Responses API adapter
 #
-# 职责：
-#   - 将 Ripple 的 (system_prompt, user_message) 调用转换为
-#     OpenAI Responses API 格式的 HTTP 请求
-#   - 解析 Responses API 的返回结构并提取文本内容
-#   - 兼容多种端点来源：
-#     · 标准 OpenAI（api.openai.com）
-#     · 国内 OpenAI 兼容端点（火山引擎/豆包等）
-#     · Azure AI Foundry（cognitiveservices.azure.com）
+# 职责 / Responsibilities:
+#   - 将 Ripple 的 (system_prompt, user_message) 转换为 Responses API HTTP 请求
+#     / Convert Ripple's calls to OpenAI Responses API HTTP requests
+#   - 解析返回结构并提取文本内容 / Parse response and extract text
+#   - 兼容多种端点 / Compatible with multiple endpoints:
+#     · 标准 OpenAI / Standard OpenAI (api.openai.com)
+#     · 国内兼容端点 / CN-compatible (Volcengine, etc.)
+#     · Azure AI Foundry (cognitiveservices.azure.com)
 #
-# 背景：
-#   标准 Chat Completions API 使用 /chat/completions 端点和 messages 字段。
-#   部分模型提供商额外提供 Responses API（/responses），使用 input 字段
-#   替代 messages，内容类型为 input_text / input_image。
-#   本模块为 Responses API 提供轻量级 httpx 直连适配。
+# 背景 / Background:
+#   Responses API (/responses) 使用 input 字段替代 messages，
+#   内容类型为 input_text / input_image。本模块提供轻量 httpx 直连适配。
+#   / Uses input field instead of messages; lightweight httpx direct adapter.
 #
-# URL 兼容性：
-#   适配器智能处理以下 URL 格式：
-#   1. 基础 URL：https://ark.cn-beijing.volces.com/api/v3
-#      → 自动追加 /responses
-#   2. 完整路径：https://xxx.azure.com/openai/responses
-#      → 直接使用
-#   3. 带 query 参数：https://xxx.azure.com/openai/responses?api-version=...
-#      → 直接使用（保留所有 query 参数）
+# URL 兼容性 / URL compatibility:
+#   1. 基础 URL / Base URL → 自动追加 / auto-appends /responses
+#   2. 完整路径 / Full path → 直接使用 / used as-is
+#   3. 带 query 参数 / With query params → 保留 / preserved
 #
-# 认证方式：
-#   - 标准端点：Authorization: Bearer <key>
-#   - Azure 端点：api-key: <key>（自动检测 Azure 域名）
+# 认证方式 / Auth:
+#   - 标准端点 / Standard: Authorization: Bearer <key>
+#   - Azure 端点 / Azure: api-key: <key> (auto-detected)
 #
-# 两种 API 格式对比：
-#
-#   Chat Completions (/chat/completions):
-#     {"model": "xxx", "messages": [{"role": "user", "content": "..."}]}
-#     → response.choices[0].message.content
-#
-#   Responses (/responses):
-#     {"model": "xxx", "input": [{"role": "user", "content": "..."}]}
-#     → response.output[0].content[0].text  或  response.output_text
+# API 格式对比 / API format comparison:
+#   Chat Completions: {"messages": [...]} → response.choices[0].message.content
+#   Responses: {"input": [...]} → response.output_text or output[0].content[0].text
 # =============================================================================
 
 from __future__ import annotations
@@ -52,7 +41,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Azure 相关域名后缀（用于自动检测认证方式）
+# Azure 相关域名后缀（用于自动检测认证方式） / Azure domain suffixes for auth detection
 _AZURE_DOMAIN_SUFFIXES = (
     "cognitiveservices.azure.com",
     "openai.azure.com",
@@ -62,10 +51,12 @@ _AZURE_DOMAIN_SUFFIXES = (
 
 class ResponsesAPIAdapter:
     """OpenAI Responses API 适配器。
+    / OpenAI Responses API adapter.
 
-    通过 httpx 异步 HTTP 直连调用 Responses API 端点。
-    将 Ripple 标准的 (system_prompt, user_message) 调用格式
-    转换为 Responses API 要求的请求结构。
+    通过 httpx 异步 HTTP 直连调用 Responses API。
+    / Async HTTP calls via httpx to Responses API endpoints.
+    将 Ripple 标准调用格式转换为 Responses API 请求结构。
+    / Converts Ripple's (system_prompt, user_message) to Responses API format.
     """
 
     def __init__(
@@ -79,29 +70,25 @@ class ResponsesAPIAdapter:
         max_retries: int = 3,
         api_version: Optional[str] = None,
     ):
-        """初始化适配器。
+        """初始化适配器。 / Initialize adapter.
 
         Args:
-            url: API 端点 URL，支持以下格式：
-                 - 基础 URL：https://ark.cn-beijing.volces.com/api/v3
-                   → 自动追加 /responses
-                 - 完整 URL：https://xxx.azure.com/openai/responses
-                   → 直接使用
-                 - 带参数 URL：https://xxx.azure.com/openai/responses?api-version=2025-04-01-preview
-                   → 直接使用（保留 query 参数）
-            api_key: API 密钥。
-            model: 模型名称（如 "doubao-seed-1-6-flash-250828"）。
-            temperature: 生成温度。
-            max_tokens: 最大输出 token 数。
-            timeout: 请求超时时间（秒）。
-            max_retries: 最大重试次数。
-            api_version: Azure API 版本（可选）。当 URL 为 Azure 基础 URL
-                 且未包含 api-version 参数时，自动追加此参数。
+            url: API 端点 URL / API endpoint URL. Supports:
+                 - 基础 URL / Base URL → auto-appends /responses
+                 - 完整 URL / Full URL → used as-is
+                 - 带参数 URL / URL with query params → preserved
+            api_key: API 密钥。 / API key.
+            model: 模型名称。 / Model name (e.g. "doubao-seed-1-6-flash-250828").
+            temperature: 生成温度。 / Generation temperature.
+            max_tokens: 最大输出 token 数。 / Max output tokens.
+            timeout: 请求超时时间（秒）。 / Request timeout in seconds.
+            max_retries: 最大重试次数。 / Max retry count.
+            api_version: Azure API 版本（可选）。 / Azure API version (optional).
         """
-        # 智能解析 URL：判断是否需要追加 /responses 路径和 query 参数
+        # 智能解析 URL：判断是否需追加 /responses 和 query 参数 / Smart URL resolution
         self._endpoint = self._resolve_endpoint(url, api_version)
 
-        # 自动检测 Azure 域名以决定认证头格式
+        # 自动检测 Azure 域名以决定认证头格式 / Auto-detect Azure domain for auth header
         self._is_azure = self._detect_azure(url)
 
         self._api_key = api_key
@@ -122,23 +109,23 @@ class ResponsesAPIAdapter:
         system_prompt: str,
         user_message: str,
     ) -> str:
-        """调用 Responses API 并返回文本响应。
+        """调用 Responses API 并返回文本响应。 / Call Responses API and return text.
 
         Args:
-            system_prompt: 系统提示词（作为 instructions 或 developer 消息）。
-            user_message: 用户消息。
+            system_prompt: 系统提示词（作为 instructions）。 / System prompt (as instructions).
+            user_message: 用户消息。 / User message.
 
         Returns:
-            模型输出的文本内容。
+            模型输出的文本内容。 / Model output text.
 
         Raises:
-            httpx.HTTPStatusError: HTTP 请求失败。
-            ValueError: 响应格式无法解析。
+            httpx.HTTPStatusError: HTTP 请求失败。 / HTTP request failed.
+            ValueError: 响应格式无法解析。 / Unparseable response format.
         """
-        # 构建请求体
+        # 构建请求体 / Build request body
         request_body = self._build_request(system_prompt, user_message)
 
-        # 请求头：Azure 使用 api-key，其他使用 Authorization: Bearer
+        # 请求头：Azure 用 api-key，其他用 Bearer / Headers: Azure uses api-key, others use Bearer
         headers: Dict[str, str] = {
             "Content-Type": "application/json",
         }
@@ -147,7 +134,7 @@ class ResponsesAPIAdapter:
         else:
             headers["Authorization"] = f"Bearer {self._api_key}"
 
-        # 发送请求（带重试）
+        # 发送请求（带重试） / Send request with retries
         last_error: Optional[Exception] = None
         for attempt in range(self._max_retries + 1):
             try:
@@ -195,49 +182,41 @@ class ResponsesAPIAdapter:
         )
 
     # =========================================================================
-    # URL 与认证检测
+    # URL 与认证检测 / URL & Auth Detection
     # =========================================================================
 
     @staticmethod
     def _resolve_endpoint(
         url: str, api_version: Optional[str] = None
     ) -> str:
-        """智能解析端点 URL。
+        """智能解析端点 URL。 / Smartly resolve endpoint URL.
 
-        处理逻辑：
-        1. 如果 URL 路径中已包含 /responses → 直接使用（保留所有 query 参数）
-        2. 如果 URL 路径中不含 /responses → 在路径末尾追加 /responses
-        3. 如果是 Azure URL 且 query 中无 api-version → 自动追加 api_version 参数
-
-        支持的 URL 格式示例：
-        - https://ark.cn-beijing.volces.com/api/v3
-          → https://ark.cn-beijing.volces.com/api/v3/responses
-        - https://xxx.azure.com/openai/responses?api-version=2025-04-01-preview
-          → 原样保留
-        - https://xxx.azure.com/openai（配合 api_version="2025-04-01-preview"）
-          → https://xxx.azure.com/openai/responses?api-version=2025-04-01-preview
+        处理逻辑 / Logic:
+        1. 路径含 /responses / Path has /responses → 直接使用 / use as-is
+        2. 路径不含 / Path missing → 追加 / append /responses
+        3. Azure URL 且无 api-version / Azure without api-version → 自动追加 / auto-append
         """
         parsed = urlparse(url)
 
-        # 检查路径是否已包含 /responses
+        # 检查路径是否已包含 /responses / Check if path already has /responses
         path = parsed.path
         if "/responses" not in path:
-            # 追加 /responses
+            # 追加 /responses / Append /responses
             path = path.rstrip("/") + "/responses"
 
-        # 处理 query 参数
+        # 处理 query 参数 / Handle query params
         query_params = parse_qs(parsed.query, keep_blank_values=True)
 
-        # Azure 端点：如果未包含 api-version 且提供了 api_version，自动追加
+        # Azure 端点：未包含 api-version 时自动追加 / Azure: auto-append api-version if missing
         if api_version and "api-version" not in query_params:
             hostname = parsed.hostname or ""
             if any(hostname.endswith(d) for d in _AZURE_DOMAIN_SUFFIXES):
                 query_params["api-version"] = [api_version]
 
-        # 重新编码 query string
+        # 重新编码 query string / Re-encode query string
         new_query = urlencode(query_params, doseq=True)
 
-        # 重组 URL
+        # 重组 URL / Reassemble URL
         resolved = urlunparse(
             parsed._replace(path=path, query=new_query)
         )
@@ -245,27 +224,25 @@ class ResponsesAPIAdapter:
 
     @staticmethod
     def _detect_azure(url: str) -> bool:
-        """检测 URL 是否为 Azure 端点。
+        """检测 URL 是否为 Azure 端点。 / Detect if URL is an Azure endpoint.
 
-        通过域名后缀匹配以下 Azure 服务域名：
-        - cognitiveservices.azure.com（Azure OpenAI Service）
-        - openai.azure.com（Azure OpenAI）
-        - services.ai.azure.com（Azure AI Foundry）
+        通过域名后缀匹配 Azure 服务域名。
+        / Matches Azure service domains by hostname suffix.
         """
         hostname = urlparse(url).hostname or ""
         return any(hostname.endswith(d) for d in _AZURE_DOMAIN_SUFFIXES)
 
     # =========================================================================
-    # 请求构建与响应解析
+    # 请求构建与响应解析 / Request Building & Response Parsing
     # =========================================================================
 
     def _build_request(
         self, system_prompt: str, user_message: str
     ) -> Dict[str, Any]:
-        """构建 Responses API 请求体。
+        """构建 Responses API 请求体。 / Build Responses API request body.
 
-        使用 instructions 字段传递系统提示词（OpenAI 推荐方式），
-        input 数组传递用户消息。
+        使用 instructions 字段传递系统提示词，input 数组传递用户消息。
+        / Uses instructions field for system prompt, input array for user message.
         """
         body: Dict[str, Any] = {
             "model": self._model,
@@ -282,7 +259,7 @@ class ResponsesAPIAdapter:
                 }
             ],
             "temperature": self._temperature,
-            "store": False,  # 不存储对话（模拟场景无需持久化）
+            "store": False,  # 不存储对话（模拟场景无需持久化） / No conversation storage (simulation)
         }
 
         if self._max_tokens is not None:
@@ -292,32 +269,32 @@ class ResponsesAPIAdapter:
 
     @staticmethod
     def _extract_text(response_data: Dict[str, Any]) -> str:
-        """从 Responses API 响应中提取文本内容。
+        """从 Responses API 响应中提取文本内容。 / Extract text from Responses API response.
 
-        兼容两种响应格式：
-        1. 标准 OpenAI Responses: output_text 字段或 output[].content[].text
-        2. 国内厂商变体: 可能结构略有不同
+        兼容两种响应格式 / Compatible with two formats:
+        1. 标准 OpenAI Responses / Standard: output_text or output[].content[].text
+        2. 国内厂商变体 / CN vendor variants: may differ slightly
         """
-        # 优先使用 output_text（OpenAI SDK 的便捷字段）
+        # 优先使用 output_text / Prefer output_text (SDK convenience field)
         if "output_text" in response_data:
             return response_data["output_text"]
 
-        # 遍历 output 数组提取文本
+        # 遍历 output 数组提取文本 / Iterate output array to extract text
         output = response_data.get("output", [])
         texts: List[str] = []
         for item in output:
-            # 标准格式：output[].content[].text
+            # 标准格式 / Standard: output[].content[].text
             content = item.get("content", [])
             if isinstance(content, list):
                 for part in content:
                     if isinstance(part, dict):
-                        # output_text 类型
+                        # output_text 类型 / output_text type
                         if part.get("type") in ("output_text", "text"):
                             texts.append(part.get("text", ""))
             elif isinstance(content, str):
                 texts.append(content)
 
-            # 备用：直接从 message 字段提取
+            # 备用：直接从 message 字段提取 / Fallback: extract from message field
             if not texts and "message" in item:
                 msg = item["message"]
                 if isinstance(msg, dict) and "content" in msg:
@@ -326,7 +303,7 @@ class ResponsesAPIAdapter:
         if texts:
             return "\n".join(texts)
 
-        # 最后尝试 choices（某些兼容端点可能混用格式）
+        # 最后尝试 choices（某些兼容端点可能混用格式） / Last resort: choices (some endpoints mix formats)
         choices = response_data.get("choices", [])
         if choices:
             msg = choices[0].get("message", {})
@@ -340,16 +317,16 @@ class ResponsesAPIAdapter:
 
     @classmethod
     def from_endpoint_config(cls, config) -> ResponsesAPIAdapter:
-        """从 ModelEndpointConfig 创建适配器实例。
+        """从 ModelEndpointConfig 创建适配器实例。 / Create adapter from ModelEndpointConfig.
 
         Args:
-            config: ModelEndpointConfig 实例。
+            config: ModelEndpointConfig 实例。 / ModelEndpointConfig instance.
 
         Returns:
-            ResponsesAPIAdapter 实例。
+            ResponsesAPIAdapter 实例。 / ResponsesAPIAdapter instance.
 
         Raises:
-            ValueError: 缺少必要的配置（url / api_key）。
+            ValueError: 缺少必要的配置（url / api_key）。 / Missing required config (url / api_key).
         """
         if not config.url:
             raise ValueError(

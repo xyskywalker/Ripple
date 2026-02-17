@@ -1,9 +1,12 @@
 """Ripple 集中式提示词管理模块。
+Centralized prompt management module for Ripple.
 
 本文件统一管理 Ripple 系统中所有 Agent 使用的 LLM 提示词模板。
 每个提示词均标注了调用位置和用途，方便后续优化管理。
+This file manages all LLM prompt templates used by Ripple agents.
+Each prompt is annotated with its call site and purpose for easy maintenance.
 
-提示词分类：
+提示词分类 / Prompt Categories:
 1. 全视者 (Omniscient) 提示词 —— INIT / RIPPLE / OBSERVE / SYNTHESIZE 各阶段
 2. 星 Agent (Star) 提示词 —— KOL 个体行为模拟
 3. 海 Agent (Sea) 提示词 —— 群体行为模拟
@@ -11,31 +14,33 @@
 """
 
 # =============================================================================
-# 通用提示词
+# 通用提示词 / Common Prompts
 # =============================================================================
 
-# 调用位置: omniscient.py — _init_sub_call(), ripple_verdict(), observe(),
+# 调用位置 / Call site: omniscient.py — _init_sub_call(), ripple_verdict(), observe(),
 #           synthesize_result() 中 JSON 解析失败时的重试前缀
-# 用途: 告知 LLM 上一次输出格式有误，要求重新输出合法 JSON
+# 用途 / Purpose: 告知 LLM 上一次输出格式有误，要求重新输出合法 JSON / Notify LLM that previous output was malformed and request valid JSON
 RETRY_JSON_PREFIX = (
     "上一次输出解析失败，错误: {error}\n"
     "请重新输出，确保是合法 JSON 格式。\n\n"
 )
 
-# 调用位置: omniscient.py — ripple_verdict(), observe() 中的简短重试前缀
-# 用途: 同上，较简短的版本
+# 调用位置 / Call site: omniscient.py — ripple_verdict(), observe() 中的简短重试前缀
+# 用途 / Purpose: 同上，较简短的版本 / Same as above, shorter variant
 RETRY_JSON_PREFIX_SHORT = (
     "上一次输出解析失败: {error}\n请重新输出合法 JSON。\n\n"
 )
 
 
 # =============================================================================
-# 全视者 (Omniscient) 提示词 — Phase INIT
+# 全视者 (Omniscient) 提示词 — Phase INIT / Omniscient Prompts — Phase INIT
 # =============================================================================
 
-# 调用位置: omniscient.py — _build_init_dynamics_prompt()
-# 用途: INIT 阶段 Sub-call 1，分析领域画像中的时间特征，
+# 调用位置 / Call site: omniscient.py — _build_init_dynamics_prompt()
+# 用途 / Purpose: INIT 阶段 Sub-call 1，分析领域画像中的时间特征，
 #       提取每轮 wave 对应的现实时间窗口和衰减参数
+#       INIT phase sub-call 1: analyze temporal characteristics from domain profile,
+#       extract real-time window per wave and decay parameters
 OMNISCIENT_INIT_DYNAMICS = (
     "## 领域画像\n\n{skill_profile}\n\n"
     "## 模拟请求\n\n{input_json}\n\n"
@@ -57,14 +62,14 @@ OMNISCIENT_INIT_DYNAMICS = (
     "```\n"
 )
 
-# 调用位置: omniscient.py — _build_init_dynamics_prompt() 内条件拼接
-# 用途: 当模拟请求指定了 simulation_horizon 时，附加到 INIT:dynamics 提示中
+# 调用位置 / Call site: omniscient.py — _build_init_dynamics_prompt() 内条件拼接
+# 用途 / Purpose: 当模拟请求指定了 simulation_horizon 时，附加到 INIT:dynamics 提示中 / Appended to INIT:dynamics prompt when simulation_horizon is specified
 OMNISCIENT_INIT_DYNAMICS_HORIZON_LINE = (
     "\n- 模拟总时长为 {horizon}，请据此判断 wave_time_window\n"
 )
 
-# 调用位置: omniscient.py — _build_init_agents_prompt()
-# 用途: INIT 阶段 Sub-call 2，根据领域画像和动态参数创建 Star/Sea Agent 配置
+# 调用位置 / Call site: omniscient.py — _build_init_agents_prompt()
+# 用途 / Purpose: INIT 阶段 Sub-call 2，根据领域画像和动态参数创建 Star/Sea Agent 配置 / INIT phase sub-call 2: create Star/Sea agent configs from domain profile and dynamic params
 OMNISCIENT_INIT_AGENTS = (
     "## 领域画像\n\n{skill_profile}\n\n"
     "## 模拟请求\n\n{input_json}\n\n"
@@ -87,8 +92,8 @@ OMNISCIENT_INIT_AGENTS = (
     "```\n"
 )
 
-# 调用位置: omniscient.py — _build_init_topology_prompt()
-# 用途: INIT 阶段 Sub-call 3，构建 Agent 间拓扑结构和种子涟漪
+# 调用位置 / Call site: omniscient.py — _build_init_topology_prompt()
+# 用途 / Purpose: INIT 阶段 Sub-call 3，构建 Agent 间拓扑结构和种子涟漪 / INIT phase sub-call 3: build inter-agent topology and seed ripple
 OMNISCIENT_INIT_TOPOLOGY = (
     "## 领域画像\n\n{skill_profile}\n\n"
     "## 模拟请求\n\n{input_json}\n\n"
@@ -115,12 +120,13 @@ OMNISCIENT_INIT_TOPOLOGY = (
 
 
 # =============================================================================
-# 全视者 (Omniscient) 提示词 — Phase RIPPLE
+# 全视者 (Omniscient) 提示词 — Phase RIPPLE / Omniscient Prompts — Phase RIPPLE
 # =============================================================================
 
-# 调用位置: omniscient.py — _build_ripple_prompt() 内构建时间进度段
-# 用途: 在 RIPPLE 裁决提示中展示当前模拟时间进度，
+# 调用位置 / Call site: omniscient.py — _build_ripple_prompt() 内构建时间进度段
+# 用途 / Purpose: 在 RIPPLE 裁决提示中展示当前模拟时间进度，
 #       帮助全视者判断是否应终止传播
+#       Show simulation time progress in RIPPLE verdict prompt to help Omniscient decide whether to terminate propagation
 OMNISCIENT_RIPPLE_TIME_PROGRESS = (
     "## 模拟时间进度\n\n"
     "- 每轮 Wave 对应现实时间: {wave_time_window}\n"
@@ -132,8 +138,8 @@ OMNISCIENT_RIPPLE_TIME_PROGRESS = (
     "continue_propagation = false**\n\n"
 )
 
-# 调用位置: omniscient.py — _build_ripple_prompt()
-# 用途: CAS 复杂自适应系统核心传播原则，指导全视者做出延续性裁决
+# 调用位置 / Call site: omniscient.py — _build_ripple_prompt()
+# 用途 / Purpose: CAS 复杂自适应系统核心传播原则，指导全视者做出延续性裁决 / CAS core propagation principles guiding Omniscient's continuation verdicts
 OMNISCIENT_RIPPLE_CAS_PRINCIPLES = (
     "## CAS 涟漪传播原则\n\n"
     "你的裁决必须遵循复杂自适应系统的核心规律：\n\n"
@@ -160,8 +166,8 @@ OMNISCIENT_RIPPLE_CAS_PRINCIPLES = (
     "参考上方 Agent 状态中的激活次数和能量值，做出延续性裁决。\n\n"
 )
 
-# 调用位置: omniscient.py — _build_ripple_prompt() 中 wave_number == 0 时注入
-# 用途: 首轮传播时提示全视者优先激活群体 Agent
+# 调用位置 / Call site: omniscient.py — _build_ripple_prompt() 中 wave_number == 0 时注入
+# 用途 / Purpose: 首轮传播时提示全视者优先激活群体 Agent / Hint for wave 0: prioritize activating Sea (cluster) agents first
 OMNISCIENT_RIPPLE_WAVE0_HINT = (
     "## 首轮传播注意\n\n"
     "这是种子涟漪刚注入系统的阶段。在 CAS 中，"
@@ -170,9 +176,10 @@ OMNISCIENT_RIPPLE_WAVE0_HINT = (
     "首轮应优先考虑激活群体 Agent。\n\n"
 )
 
-# 调用位置: omniscient.py — _build_ripple_prompt()
-# 用途: RIPPLE 阶段的完整裁决提示词框架，
+# 调用位置 / Call site: omniscient.py — _build_ripple_prompt()
+# 用途 / Purpose: RIPPLE 阶段的完整裁决提示词框架，
 #       包含系统状态、传播历史、Agent 列表和 JSON 输出格式要求
+#       Full RIPPLE verdict prompt frame: system state, propagation history, agent list, and JSON output schema
 OMNISCIENT_RIPPLE_VERDICT = (
     "## 当前 Wave: {wave_number}\n\n"
     "{time_progress}"
@@ -224,12 +231,13 @@ OMNISCIENT_RIPPLE_VERDICT = (
 
 
 # =============================================================================
-# 全视者 (Omniscient) 提示词 — Phase OBSERVE
+# 全视者 (Omniscient) 提示词 — Phase OBSERVE / Omniscient Prompts — Phase OBSERVE
 # =============================================================================
 
-# 调用位置: omniscient.py — _build_observe_prompt()
-# 用途: OBSERVE 阶段，分析整个传播过程，判断当前相态（phase vector）、
+# 调用位置 / Call site: omniscient.py — _build_observe_prompt()
+# 用途 / Purpose: OBSERVE 阶段，分析整个传播过程，判断当前相态（phase vector）、
 #       检测涌现事件和相变
+#       OBSERVE phase: analyze full propagation history, determine phase vector, detect emergence events and phase transitions
 OMNISCIENT_OBSERVE = (
     "## 系统状态\n\n{snapshot_json}\n\n"
     "## 完整传播历史\n\n{full_history}\n\n"
@@ -259,11 +267,11 @@ OMNISCIENT_OBSERVE = (
 
 
 # =============================================================================
-# 全视者 (Omniscient) 提示词 — Phase SYNTHESIZE
+# 全视者 (Omniscient) 提示词 — Phase SYNTHESIZE / Omniscient Prompts — Phase SYNTHESIZE
 # =============================================================================
 
-# 调用位置: omniscient.py — _build_synth_prompt() 当无历史数据时
-# 用途: SYNTHESIZE 阶段的相对值预测模板（无历史数据锚定时使用）
+# 调用位置 / Call site: omniscient.py — _build_synth_prompt() 当无历史数据时
+# 用途 / Purpose: SYNTHESIZE 阶段的相对值预测模板（无历史数据锚定时使用） / SYNTHESIZE phase relative-value prediction template (used when no historical data for anchoring)
 OMNISCIENT_SYNTHESIZE_RELATIVE = (
     "## 最终系统状态\n\n{snapshot_json}\n\n"
     "## 观测分析\n\n{obs_json}\n\n"
@@ -314,8 +322,8 @@ OMNISCIENT_SYNTHESIZE_RELATIVE = (
     "```\n"
 )
 
-# 调用位置: omniscient.py — _build_synth_prompt() 当有历史数据时
-# 用途: SYNTHESIZE 阶段的锚定式绝对值预测模板（有历史数据参考时使用）
+# 调用位置 / Call site: omniscient.py — _build_synth_prompt() 当有历史数据时
+# 用途 / Purpose: SYNTHESIZE 阶段的锚定式绝对值预测模板（有历史数据参考时使用） / SYNTHESIZE phase anchored absolute-value prediction template (used when historical data is available)
 OMNISCIENT_SYNTHESIZE_ANCHORED = (
     "## 最终系统状态\n\n{snapshot_json}\n\n"
     "## 观测分析\n\n{obs_json}\n\n"
@@ -375,12 +383,13 @@ OMNISCIENT_SYNTHESIZE_ANCHORED = (
 
 
 # =============================================================================
-# 星 Agent (Star) 提示词
+# 星 Agent (Star) 提示词 / Star Agent Prompts
 # =============================================================================
 
-# 调用位置: star.py — _build_system_prompt()
-# 用途: Star Agent 的系统提示词，定义 KOL 角色身份、响应类型、
+# 调用位置 / Call site: star.py — _build_system_prompt()
+# 用途 / Purpose: Star Agent 的系统提示词，定义 KOL 角色身份、响应类型、
 #       记忆回忆策略和 JSON 输出格式
+#       Star agent system prompt: define KOL persona, response types, memory recall strategy, and JSON output schema
 STAR_SYSTEM_PROMPT = (
     "你是 {description}。\n\n"
     "你收到了一条涟漪（信息传播信号）。"
@@ -399,8 +408,8 @@ STAR_SYSTEM_PROMPT = (
     "outgoing_energy (0-1), reasoning"
 )
 
-# 调用位置: star.py — _build_user_prompt()
-# 用途: Star Agent 收到涟漪时的用户提示词，传递涟漪来源、能量和内容
+# 调用位置 / Call site: star.py — _build_user_prompt()
+# 用途 / Purpose: Star Agent 收到涟漪时的用户提示词，传递涟漪来源、能量和内容 / User prompt when Star agent receives a ripple: convey source, energy, and content
 STAR_USER_PROMPT = (
     "收到涟漪:\n"
     "- 来源: {source}\n"
@@ -409,26 +418,27 @@ STAR_USER_PROMPT = (
     "请决定你的响应。"
 )
 
-# 调用位置: star.py — _build_system_prompt() 内记忆格式化
-# 用途: Star Agent 单条记忆的格式模板
+# 调用位置 / Call site: star.py — _build_system_prompt() 内记忆格式化
+# 用途 / Purpose: Star Agent 单条记忆的格式模板 / Format template for a single Star agent memory entry
 STAR_MEMORY_LINE = (
     "- 收到来自 {ripple_source} 的涟漪: "
     "'{ripple_content_preview}...' → "
     "我的回应: {response_type}"
 )
 
-# 调用位置: star.py — _build_system_prompt() 内记忆段标题
-# 用途: Star Agent 记忆段的标题
+# 调用位置 / Call site: star.py — _build_system_prompt() 内记忆段标题
+# 用途 / Purpose: Star Agent 记忆段的标题 / Section header for Star agent memory block
 STAR_MEMORY_HEADER = "\n\n## 你的近期记忆\n"
 
 
 # =============================================================================
-# 海 Agent (Sea) 提示词
+# 海 Agent (Sea) 提示词 / Sea Agent Prompts
 # =============================================================================
 
-# 调用位置: sea.py — _build_system_prompt()
-# 用途: Sea Agent 的系统提示词，定义群体角色、响应类型、
+# 调用位置 / Call site: sea.py — _build_system_prompt()
+# 用途 / Purpose: Sea Agent 的系统提示词，定义群体角色、响应类型、
 #       群体内部差异性（避免 LLM 从众倾向）和 JSON 输出格式
+#       Sea agent system prompt: define cluster persona, response types, intra-group diversity (counter LLM conformity bias), and JSON output schema
 SEA_SYSTEM_PROMPT = (
     "你代表的群体是：{description}\n\n"
     "你收到了一条涟漪（信息传播信号）。"
@@ -452,8 +462,8 @@ SEA_SYSTEM_PROMPT = (
     "outgoing_energy (0-1), sentiment_shift, reasoning"
 )
 
-# 调用位置: sea.py — _build_user_prompt()
-# 用途: Sea Agent 收到涟漪时的用户提示词，传递涟漪来源、能量和内容
+# 调用位置 / Call site: sea.py — _build_user_prompt()
+# 用途 / Purpose: Sea Agent 收到涟漪时的用户提示词，传递涟漪来源、能量和内容 / User prompt when Sea agent receives a ripple: convey source, energy, and content
 SEA_USER_PROMPT = (
     "收到涟漪:\n"
     "- 来源: {source}\n"
@@ -462,13 +472,13 @@ SEA_USER_PROMPT = (
     "请决定你代表的群体的集体响应。"
 )
 
-# 调用位置: sea.py — _build_system_prompt() 内记忆格式化
-# 用途: Sea Agent 单条记忆的格式模板
+# 调用位置 / Call site: sea.py — _build_system_prompt() 内记忆格式化
+# 用途 / Purpose: Sea Agent 单条记忆的格式模板 / Format template for a single Sea agent memory entry
 SEA_MEMORY_LINE = (
     "- 收到来自 {ripple_source} 的涟漪 → "
     "群体回应: {response_type}"
 )
 
-# 调用位置: sea.py — _build_system_prompt() 内记忆段标题
-# 用途: Sea Agent 记忆段的标题
+# 调用位置 / Call site: sea.py — _build_system_prompt() 内记忆段标题
+# 用途 / Purpose: Sea Agent 记忆段的标题 / Section header for Sea agent memory block
 SEA_MEMORY_HEADER = "\n\n## 近期群体记忆\n"

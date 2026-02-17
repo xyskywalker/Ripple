@@ -1,11 +1,12 @@
-"""星 Agent —— 纯行为模拟器。
+"""星 Agent —— 纯行为模拟器。 / Star Agent — pure behavior simulator.
 
-星 Agent 只知道：
-1. 自己的画像描述
-2. 收到的涟漪（内容、能量、来源）
-3. 自己的历史记忆
+星 Agent 只知道： / Star Agent only knows:
+1. 自己的画像描述 / Its own profile description
+2. 收到的涟漪（内容、能量、来源） / Received ripples (content, energy, source)
+3. 自己的历史记忆 / Its own historical memory
 
 不知道：全局状态、其他 Agent、传播全貌、平台参数。
+/ Unaware of: global state, other agents, propagation overview, platform params.
 """
 
 import json
@@ -31,7 +32,7 @@ FALLBACK_RESPONSE = {
 
 
 class StarAgent:
-    """星 Agent：个体 KOL 行为模拟器。"""
+    """星 Agent：个体 KOL 行为模拟器。 / Star Agent: individual KOL behavior simulator."""
 
     def __init__(
         self,
@@ -54,7 +55,7 @@ class StarAgent:
         ripple_energy: float,
         ripple_source: str,
     ) -> Dict[str, Any]:
-        """收到涟漪后生成响应。"""
+        """收到涟漪后生成响应。 / Generate response upon receiving a ripple."""
         system_prompt = self._build_system_prompt()
         user_prompt = self._build_user_prompt(
             ripple_content, ripple_energy, ripple_source,
@@ -94,7 +95,7 @@ class StarAgent:
     def _build_system_prompt(self) -> str:
         memory_context = ""
         if self.memory:
-            recent = self.memory[-5:]  # 最近5条
+            recent = self.memory[-5:]  # 最近5条 / Last 5 entries
             memory_lines = []
             for m in recent:
                 memory_lines.append(
