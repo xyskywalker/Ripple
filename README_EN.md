@@ -13,12 +13,16 @@
 </p>
 
 <p align="center">
+  <a href="https://x.com/_xyplus_"><img src="https://img.shields.io/badge/X-@__xyplus__-black?logo=x&logoColor=white" alt="X (Twitter)"></a>
+  <a href="mailto:xypluslab@gmail.com"><img src="https://img.shields.io/badge/email-xypluslab%40gmail.com-blue?logo=gmail&logoColor=white" alt="Email"></a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/version-0.1.0-green" alt="Version">
   <img src="https://img.shields.io/badge/tests-148%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-orange" alt="License">
   <img src="https://img.shields.io/badge/LLM-Anthropic%20%7C%20OpenAI%20%7C%20Bedrock-purple" alt="LLM">
-  <a href="mailto:xypluslab@gmail.com"><img src="https://img.shields.io/badge/email-xypluslab%40gmail.com-blue?logo=gmail&logoColor=white" alt="Email"></a>
 </p>
 
 ---
