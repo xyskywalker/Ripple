@@ -333,7 +333,7 @@ pytest -v
 |--|-------------------------------|---------------------------------------------|
 | Theoretical Paradigm | Multi-agent simulation | **Complex Adaptive System (CAS)** |
 | Simulation Granularity | One user = one Agent | **One population = one Agent** |
-| LLM Calls / Simulation | ~300,000 | **~20–50** (typical scenarios) |
+| LLM Calls / Simulation | ~300,000 | **~50-150** (typical scenarios) |
 | Runtime | Hours | **Minutes** |
 | Prediction Output | Deterministic single values | **Predictions with confidence + dynamics diagnostics + optimization suggestions** |
 | Cross-Group Interaction | Yes (per-person level) | **Yes (emergent, population-level)** |
