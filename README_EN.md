@@ -19,8 +19,9 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/version-0.1.0-green" alt="Version">
-  <img src="https://img.shields.io/badge/tests-148%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/version-0.2.0-green" alt="Version">
+  <img src="https://img.shields.io/badge/tests-227%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/skills-2-teal" alt="Skills">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-orange" alt="License">
   <img src="https://img.shields.io/badge/LLM-Anthropic%20%7C%20OpenAI%20%7C%20Bedrock-purple" alt="LLM">
 </p>
@@ -33,19 +34,21 @@
 1. [Introduction](#-introduction)
 2. [Design Philosophy](#-design-philosophy)
 3. [Core Concepts: How CAS Drives Prediction](#-core-concepts-how-cas-drives-prediction)
-4. [Star-Sea Architecture](#-star-sea-architecture)
-5. [5-Phase Runtime Engine](#-5-phase-runtime-engine)
+4. [Star-Sea-Tribunal Architecture](#-star-sea-tribunal-architecture)
+5. [Runtime Engine](#-runtime-engine)
 6. [System Architecture](#-system-architecture)
 7. [Quick Start](#-quick-start)
 8. [Cost Comparison](#-cost-comparison)
 9. [Social Media: The First Domain Implementation](#-social-media-the-first-domain-implementation)
-10. [Infinite Possibilities](#-infinite-possibilities)
-11. [Project Structure](#-project-structure)
-12. [Project Status](#-project-status)
-13. [Tech Stack](#-tech-stack)
-14. [Inspiration: OASIS](#-inspiration-oasis)
-15. [Acknowledgments](#-acknowledgments)
-16. [License](#-license)
+10. [PMF Validation: The Second Domain Implementation](#-pmf-validation-the-second-domain-implementation)
+11. [Infinite Possibilities](#-infinite-possibilities)
+12. [Project Structure](#-project-structure)
+13. [Project Status](#-project-status)
+14. [Tech Stack](#-tech-stack)
+15. [Document Index](#-document-index)
+16. [Inspiration: OASIS](#-inspiration-oasis)
+17. [Acknowledgments](#-acknowledgments)
+18. [License](#-license)
 
 </details>
 
@@ -57,13 +60,18 @@
 
 Information propagation in society is like ripples on water — a stone drops in, waves spread outward from the center, and when they meet other waves, they superpose, interfere, resonate, or cancel out. Ripple encodes this physical intuition into a computable engine: **signals propagate energy between agents, producing emergence, non-linear amplification, feedback loops, and phase transitions** — which is exactly how this project got its name.
 
-**Social media content propagation simulation** is the first application scenario implemented by Ripple: input a piece of content you plan to publish, and the system outputs propagation predictions with confidence levels, system dynamics diagnostics, and actionable optimization suggestions through multi-agent simulation.
+Ripple currently implements **two application scenarios**:
+
+- **📱 Social Media Content Propagation Prediction**: Input a piece of content you plan to publish, and the system outputs propagation predictions with confidence levels, system dynamics diagnostics, and actionable optimization suggestions through multi-agent simulation
+- **🎯 PMF (Product-Market Fit) Validation**: Input a product plan and target market, and the system simulates real consumer group reactions, outputting multi-dimensional PMF scores, risk diagnostics, and improvement strategies
+
+Both scenarios incorporate the **Tribunal mechanism** — through multi-expert structured debate, systematically countering LLM optimism bias to ensure prediction realism.
 
 ### Project Positioning
 
 - 🔬 Independent project, inspired by the multi-agent social simulation approach of [OASIS](https://github.com/camel-ai/oasis)
 - 🎯 Oriented toward practical applications (content creation, product market analysis, public opinion assessment), not academic research
-- 🌐 The CAS core is completely domain-agnostic — social media is just the first application scenario
+- 🌐 The CAS core is completely domain-agnostic — social media and PMF validation are the first two application scenarios
 - ⚡ Pursuing ultimate practicality and cost efficiency — ~**3 orders of magnitude** reduction in LLM calls compared to OASIS
 
 ---
@@ -78,15 +86,16 @@ Signals propagate energy through agent networks like ripples. Each agent receive
 
 Departing from OASIS's "one person = one Agent" individual simulation architecture, Ripple adopts a **population-level simulation** approach. In real social networks, most ordinary users exhibit collective statistical behavior patterns — Ripple aggregates users with similar attributes into a single population agent, replacing per-person simulation with statistical distributions, **reducing LLM calls by ~3 orders of magnitude** while preserving the ability to capture emergent behavior through the CAS theoretical framework.
 
-### 3. ⭐🌊 Original "Star-Sea" Architecture
+### 3. ⭐🌊 Original "Star-Sea-Tribunal" Architecture
 
-Ripple introduces the original **Star-Sea tri-agent architecture**:
+Ripple introduces the original **Star-Sea-Tribunal quad-agent architecture**:
 
 - **🌟 Star Agents**: High-profile individuals (KOLs/opinion leaders) continue with individual simulation, retaining personalized decision-making capabilities
 - **🌊 Sea Agents**: Ordinary user groups use population-level simulation, characterizing collective behavior with statistical distributions
 - **👁️ Omniscient Agent**: A god's-eye-view global orchestrator, coordinating propagation arbitration, environment observation, and system regulation
+- **⚖️ Tribunal Agents**: Multi-expert review panel, calibrating prediction results through structured debate
 
-The three work in concert to form an optimal resource allocation pattern of **"individual precision + population efficiency + global coordination"**.
+The four work in concert to form an optimal resource allocation pattern of **"individual precision + population efficiency + global coordination + multi-perspective calibration"**.
 
 ### 4. 🤖 Agent-Native
 
@@ -94,15 +103,19 @@ Decision-making is **entirely delegated to LLMs**, fully leveraging LLM emergent
 
 ### 5. ✨ Minimalist Design
 
-System architecture is simplified as much as possible: **no third-party Agent frameworks used**, pure Python + httpx directly connecting to multiple LLM APIs. 17 core modules, ~5,300 lines of source code — pursuing the most complete CAS simulation capability with the least amount of code.
+System architecture is simplified as much as possible: **no third-party Agent frameworks used**, pure Python + httpx directly connecting to multiple LLM APIs. 23 core modules — pursuing the most complete CAS simulation capability with the least amount of code.
 
 ### 6. 🧩 Domain Separation & Skill Architecture
 
-The core CAS engine is completely domain-agnostic — it knows nothing about "likes", "traffic pools", or "CES scores". All domain knowledge is injected through **Skill packages**: pure natural language domain profiles + platform profiles + role prompts, achieving **zero-code extension to new domains**.
+The core CAS engine is completely domain-agnostic — it knows nothing about "likes", "traffic pools", or "PMF scores". All domain knowledge is injected through **Skill packages**: pure natural language domain profiles + platform/channel/vertical profiles + role prompts, achieving **zero-code extension to new domains**.
 
-### 7. 🔍 Intuitive & Traceable
+### 7. ⚖️ Tribunal Calibration Mechanism
 
-The entire simulation process is fully observable: every Wave's Omniscient arbitration, every agent's response decision, ripple propagation paths and energy changes — all incrementally recorded as structured JSON. Prediction results come with **confidence assessments**, letting users clearly know how "certain" or "uncertain" the model is.
+The **Tribunal** multi-expert review architecture is introduced, with a structured debate process — **independent review → cross-challenge → revise positions → synthesize verdict** — systematically countering LLM optimism bias. Tribunals across different domains are configured with different expert roles, scoring dimensions, and review criteria, while sharing the same debate mechanism. Combined with the **five-layer anti-optimism-bias defense** (industry reality anchors → conservative instructions → realistic behavior anchoring → optimism audit → behavioral anchor calibration), prediction results are kept grounded in reality.
+
+### 8. 🔍 Intuitive & Traceable
+
+The entire simulation process is fully observable: every Wave's Omniscient arbitration, every agent's response decision, ripple propagation paths and energy changes, the Tribunal's review process and debate records — all incrementally recorded as structured JSON. Prediction results come with **confidence assessments**, letting users clearly know how "certain" or "uncertain" the model is.
 
 ---
 
@@ -132,36 +145,42 @@ Human social behavior inherently exhibits the core characteristics of **Complex 
 
 ---
 
-## ⭐ Star-Sea Architecture
+## ⭐ Star-Sea-Tribunal Architecture
 
-The tri-agent architecture of Ripple is key to understanding the entire system:
+Ripple's quad-agent architecture is key to understanding the entire system:
 
 <p align="center">
-  <img src="misc/omniscient_agent_architecture_en.png" alt="Star-Sea Architecture" width="480" />
+  <img src="misc/tribunal_architecture_en.png" alt="Star-Sea-Tribunal Architecture" width="600" />
 </p>
 
-| Agent | Maps To | Simulation Granularity | LLM Model | Responsibilities |
-|-------|---------|----------------------|-----------|-----------------|
-| **👁️ Omniscient** | The system itself | Global | High-intelligence (Qwen3.5-Plus / Doubao-Seed-2.0-Pro) | Initialization, propagation arbitration, observation, synthesis |
+| Agent | Maps To | Granularity | LLM Model | Responsibilities |
+|-------|---------|-------------|-----------|-----------------|
+| **👁️ Omniscient** | The system itself | Global | High-intelligence (Qwen3.5-Plus / Doubao-Seed-2.0-Pro) | Initialization, propagation arbitration, observation, Tribunal moderation, final synthesis |
 | **🌟 Star** | KOL / Opinion leaders | Individual | High-quality (Doubao-Seed-2.0-Lite / DeepSeek-V3.2) | Personalized content decisions, influence propagation |
 | **🌊 Sea** | Ordinary user groups | Population | Lightweight (Doubao-Seed-2.0-Mini / Qwen3-Flash) | Statistical population response, interaction behavior |
+| **⚖️ Tribunal** | Domain expert panel | Global | High-intelligence (same tier as Omniscient) | Multi-dimensional review, cross-challenge, anti-optimism calibration |
+
+### Tribunal Role Configuration Across Domains
+
+The Tribunal's core mechanism (evaluate → challenge → revise → synthesize) is domain-agnostic, but expert roles and scoring dimensions vary by domain:
+
+| Dimension | Social Media Tribunal | PMF Validation Tribunal |
+|-----------|----------------------|------------------------|
+| **Mission** | Propagation prediction realism calibration | Multi-dimensional product-market fit scoring |
+| **Members** | Propagation dynamics expert · Platform ecosystem expert · Devil's advocate | Market analyst · User advocate · Devil's advocate |
+| **Score semantics** | High score = prediction is reasonable with strong evidence | High score = strong PMF signal |
+| **Score of 3** | Simulation prediction matches baseline reality | Product performs averagely on this dimension |
+| **Core focus** | Whether propagation predictions are overly optimistic | Whether product demand is real |
 
 ---
 
-## 🔄 5-Phase Runtime Engine
+## 🔄 Runtime Engine
 
-The Omniscient-driven 5-Phase Wave execution cycle:
+The Omniscient-driven 5-Phase Wave execution cycle, with an optional DELIBERATE Tribunal review phase:
 
-```
-Phase 0        Phase 1         Phase 2          Phase 3           Phase 4
- INIT    ──▶    SEED    ──▶    RIPPLE    ──▶    OBSERVE    ──▶    FEEDBACK
-                                                                  & RECORD
- Omniscient     Omniscient     Star/Sea         Omniscient         Engine
- Init scenario  Seed ripples   Respond &        Global observation Record & loop
- Build topology Determine      propagate        Phase detection    decision
- Estimate waves  seeds         Energy decay     Emergence detect   ──▶ Next Wave
-                Activate agents Semantic mut.                          or terminate
-```
+<p align="center">
+  <img src="misc/architecture_en.png" alt="5-Phase Runtime Engine" width="700" />
+</p>
 
 ### Phase Details
 
@@ -172,16 +191,15 @@ Phase 0        Phase 1         Phase 2          Phase 3           Phase 4
 | **Phase 2** | RIPPLE | Star & Sea | Activated agents receive ripples and decide responses (amplify/absorb/mutate/ignore) |
 | **Phase 3** | OBSERVE | Omniscient | Aggregate macro metrics, observe system state, determine phase changes |
 | **Phase 4** | FEEDBACK & RECORD | Engine | Record Wave data, update Field state, determine termination or proceed to next round |
+| **Extra** | DELIBERATE | Omniscient + Tribunal | Multi-expert review, structured debate, anti-optimism calibration, synthesize final verdict |
 
 ---
 
 ## 🏗️ System Architecture
 
 <p align="center">
-  <img src="misc/ripple_cas_architecture_en.png" alt="System Architecture" width="480" />
+  <img src="misc/layered_architecture_en.png" alt="System Architecture" width="700" />
 </p>
-
-**Dependency direction** (strictly unidirectional): Application Layer → Skill Layer → CAS Engine → LLM Adapter Layer
 
 ---
 
@@ -221,13 +239,13 @@ cp llm_config.example.yaml llm_config.yaml
 
 ### Three-Tier Model Recommendations
 
-Ripple's tri-agent system has different LLM capability requirements. The following three-tier model selection is recommended (when cost is not a concern, all agents can use the high-intelligence tier for better simulation results):
+Ripple's quad-agent system has different LLM capability requirements. The following three-tier model selection is recommended (when cost is not a concern, all agents can use the high-intelligence tier for better simulation results):
 
 | Tier | Target Role | Recommended Models | Description |
 |------|------------|-------------------|-------------|
-| 🧠 **High-Intelligence** | Omniscient | Qwen3.5-Plus / Doubao-Seed-2.0-Pro | Requires deep reasoning and global decision-making, responsible for CAS global orchestration |
-| ⚡ **High-Quality** | Star Agent | Doubao-Seed-2.0-Lite / DeepSeek-V3.2 | Balances quality and speed, responsible for KOL personalized decisions |
-| 🪶 **Lightweight** | Sea Agent | Doubao-Seed-2.0-Mini / Qwen3-Flash | Low latency, high concurrency, responsible for population behavior statistical simulation |
+| 🧠 **High-Intelligence** | Omniscient + Tribunal | Qwen3.5-Plus / Doubao-Seed-2.0-Pro | Requires deep reasoning and global decision-making |
+| ⚡ **High-Quality** | Star Agent | Doubao-Seed-2.0-Lite / DeepSeek-V3.2 | Balances quality and speed, responsible for personalized decisions |
+| 🪶 **Lightweight** | Sea Agent | Doubao-Seed-2.0-Mini / Qwen3-Flash | Low latency, high concurrency, responsible for population behavior simulation |
 
 > 💡 The above are Chinese LLM recommendations. Also supports Anthropic (Claude Opus/Sonnet/Haiku), OpenAI (GPT-5.2) and other international models. See `llm_config.example.yaml` for details.
 
@@ -279,7 +297,49 @@ sea:
   temperature: 0.5
 ```
 
-### Basic Usage
+### End-to-End Simulation Examples (Recommended)
+
+The `examples/` directory provides ready-to-run end-to-end simulation scripts with real sample data, progress callbacks, and post-simulation interpretive report generation — **recommended as the starting point for first-time users**.
+
+**Social Media Simulation — Xiaohongshu 48h Propagation Prediction**
+
+```bash
+# Basic mode (topic only)
+python examples/e2e_simulation_xiaohongshu.py basic
+
+# Enhanced mode (topic + account profile + historical data)
+python examples/e2e_simulation_xiaohongshu.py enhanced
+
+# Run all modes
+python examples/e2e_simulation_xiaohongshu.py all
+
+# Custom parameters
+python examples/e2e_simulation_xiaohongshu.py basic --waves 4 --no-report
+```
+
+**Social Media Simulation — Spring Festival Gala Robot Topic (Scenario Example)**
+
+```bash
+python examples/e2e_simulation_cny_robot_xiaohongshu.py
+python examples/e2e_simulation_cny_robot_xiaohongshu.py --waves 4
+```
+
+**PMF Validation — FMCG × Douyin E-commerce**
+
+```bash
+# Basic mode (product info only)
+python examples/e2e_pmf_fmcg_algorithm_ecommerce.py basic
+
+# Enhanced mode (product + brand account + historical data)
+python examples/e2e_pmf_fmcg_algorithm_ecommerce.py enhanced
+
+# Run all modes
+python examples/e2e_pmf_fmcg_algorithm_ecommerce.py all
+```
+
+> 💡 All scripts automatically read `llm_config.yaml` configuration and output JSON result files plus Markdown compact logs. Use `--no-report` to skip post-simulation LLM interpretive report generation.
+
+### Social Media Simulation
 
 ```python
 import asyncio
@@ -296,7 +356,7 @@ async def main():
         },
         skill="social-media",
         platform="xiaohongshu",
-        simulation_horizon="48h",       # Simulate 48 hours after posting
+        simulation_horizon="48h",
     )
 
     print(f"Simulation complete! Results saved to: {result['output_file']}")
@@ -304,19 +364,49 @@ async def main():
 asyncio.run(main())
 ```
 
-### Switch Platforms
-
-Simply change the `platform` parameter to switch between social media platforms:
+### PMF Validation
 
 ```python
-# Xiaohongshu (RED)
+import asyncio
+from ripple.api.simulate import simulate
+
+async def main():
+    result = await simulate(
+        event={
+            "name": "SpringBubble Sparkling Water",
+            "category": "Zero-sugar sparkling water",
+            "description": "Fresh-squeezed juice + zero sugar/fat, pasteurized juice process, MSRP $0.95/bottle",
+            "differentiators": ["Pasteurized juice process", "Zero sugar/fat/calories", "Natural sparkling water source"],
+            "competitive_landscape": "Direct competitors: established brands; category shifted from blue ocean to red ocean",
+        },
+        skill="pmf-validation",
+        platform="douyin",
+        channel="algorithm-ecommerce",
+        vertical="fmcg",
+        simulation_horizon="72h",
+        deliberation_rounds=3,
+    )
+
+    print(f"PMF validation complete! Results saved to: {result['output_file']}")
+
+asyncio.run(main())
+```
+
+### Switch Platforms / Channels / Verticals
+
+```python
+# Social media: switch platforms
 await simulate(event=event, skill="social-media", platform="xiaohongshu")
-
-# Douyin (TikTok China)
 await simulate(event=event, skill="social-media", platform="douyin")
+await simulate(event=event, skill="social-media", platform="weibo")
 
-# Weibo / Bilibili / Zhihu / WeChat Official Account / Generic
-# platform="weibo" / "bilibili" / "zhihu" / "wechat" / "generic"
+# PMF validation: Channel × Vertical × Platform free combination
+await simulate(event=event, skill="pmf-validation",
+               channel="algorithm-ecommerce", vertical="fmcg", platform="douyin")
+await simulate(event=event, skill="pmf-validation",
+               channel="search-ecommerce", vertical="consumer-electronics", platform="xiaohongshu")
+await simulate(event=event, skill="pmf-validation",
+               channel="enterprise-sales", vertical="saas")
 ```
 
 ### Run Tests
@@ -337,12 +427,13 @@ pytest -v
 |--|-------------------------------|---------------------------------------------|
 | Theoretical Paradigm | Multi-agent simulation | **Complex Adaptive System (CAS)** |
 | Simulation Granularity | One user = one Agent | **One population = one Agent** |
-| LLM Calls / Simulation | ~300,000 | **~50-150** (typical scenarios) |
+| LLM Calls / Simulation | ~300,000 | **~100-500** (varies by domain) |
 | Runtime | Hours | **Minutes** |
 | Prediction Output | Deterministic single values | **Predictions with confidence + dynamics diagnostics + optimization suggestions** |
+| Prediction Calibration | None | **Tribunal multi-expert review + anti-optimism-bias calibration** |
 | Cross-Group Interaction | Yes (per-person level) | **Yes (emergent, population-level)** |
 | Feedback Modeling | Yes (per-person level) | **Yes (positive/negative feedback + phase transitions)** |
-| Domain Generality | Social media | **Any human social behavior** |
+| Domain Generality | Social media | **Any human social behavior (2 domains implemented)** |
 | Agent Framework | CAMEL-AI | **Native Python (no framework dependency)** |
 | Platform Adaptation | Code-level implementation | **Pure natural language profile driven (zero-code)** |
 | vs OASIS Compression | — | **~3 orders of magnitude** |
@@ -351,7 +442,7 @@ pytest -v
 
 ## 📱 Social Media: The First Domain Implementation
 
-Social media content propagation is the **first application scenario** of the CAS engine. Through the `social-media` Skill, CAS primitives are mapped to concrete social media concepts:
+Social media content propagation is the **first application scenario** of the CAS engine. Through the `social-media` Skill (v0.2.0), CAS primitives are mapped to concrete social media concepts:
 
 | CAS Primitive | Social Media Concept | Description |
 |--------------|---------------------|-------------|
@@ -361,6 +452,19 @@ Social media content propagation is the **first application scenario** of the CA
 | Field | Platform environment | Recommendation algorithms, attention allocation, competing content pool |
 | Event | Interaction behavior | Like / Save / Comment / Share / Follow / Ignore |
 | PhaseVector | Propagation phase | Seed → Growth → Explosion → Decline |
+| Tribunal | Propagation calibration tribunal | Propagation dynamics expert · Platform ecosystem expert · Devil's advocate |
+
+### Propagation Calibration Tribunal
+
+The social media Skill introduces the Tribunal as a **propagation prediction calibration layer**, where 3 experts review propagation results for realism after simulation completes:
+
+| Scoring Dimension | Meaning |
+|------------------|---------|
+| `reach_realism` | Reach scale reasonableness |
+| `decay_realism` | Decay curve reasonableness |
+| `virality_plausibility` | Viral propagation path credibility |
+| `audience_activation` | Audience activation ratio reasonableness |
+| `timeline_realism` | Timeline reasonableness |
 
 ### 7 Platforms Supported
 
@@ -378,20 +482,95 @@ Each platform describes its user ecosystem, recommendation algorithms, and inter
 
 ---
 
+## 🎯 PMF Validation: The Second Domain Implementation
+
+PMF (Product-Market Fit) validation is the **second application scenario** of the CAS engine. Through the `pmf-validation` Skill, CAS primitives are mapped to product-market validation core concepts:
+
+| CAS Primitive | PMF Validation Concept | Description |
+|--------------|----------------------|-------------|
+| Ripple | Product signal propagation wave | Product experience / word-of-mouth diffusion across target groups |
+| Star Agent | Industry KOL / Opinion leaders | Key reviewers, industry experts, early adopters |
+| Sea Agent | Target consumer groups | Potential user groups aggregated by profile characteristics |
+| Field | Market environment | Channel ecosystem, competitive landscape, consumer trends |
+| Event | Consumer behavior | Awareness / Trial / Purchase / Repurchase / Recommend / Abandon |
+| PhaseVector | Market penetration phase | Awareness → Trial → Growth → Maturity |
+| Tribunal | PMF review tribunal | Market analyst · User advocate · Devil's advocate |
+
+### Channel × Vertical × Platform Orthogonal Composition
+
+PMF validation uses a three-dimensional orthogonal architecture, with each dimension independently selectable and freely combinable:
+
+```
+Channel (by propagation mechanism)
+    ×
+Vertical (industry know-how injection)
+    ×
+Platform (specific platform profile)
+```
+
+### 8 Channels (by Propagation Mechanism)
+
+| Channel | Identifier | Core Propagation Mechanism | Representative Scenarios |
+|---------|------------|--------------------------|------------------------|
+| Algorithm-Driven E-commerce | `algorithm-ecommerce` | Algorithm matching → interest trigger → impulse decision | Douyin E-commerce, Kuaishou E-commerce |
+| Search E-commerce | `search-ecommerce` | Active search → review cascade → rational comparison | Tmall, JD.com |
+| Social E-commerce | `social-ecommerce` | Social chain propagation → trust endorsement → viral fission | WeChat Mini Program stores, group buying |
+| Content Seeding | `content-seeding` | Content-driven → search sedimentation → long-tail conversion | Xiaohongshu shopping notes, Bilibili reviews |
+| Offline Experience Retail | `offline-experience` | Experience → word-of-mouth, geo-radiation, guided sales | Brand flagship stores, department counters |
+| Offline Distribution Retail | `offline-distribution` | Shelf visibility → instant decision → repurchase inertia | Supermarkets, convenience stores |
+| Enterprise Sales | `enterprise-sales` | Decision chain driven → peer reference → long-cycle conversion | SaaS direct sales, B2B services |
+| App Store | `app-distribution` | Ranking + rating → featured position → download conversion | App Store, WeChat Mini Programs |
+
+### 5 Industry Verticals
+
+| Industry | Identifier | Core Characteristics | Proprietary Scoring Dimensions |
+|----------|------------|---------------------|-------------------------------|
+| FMCG | `fmcg` | High-frequency consumption, repurchase-driven, channel penetration critical | Shelf competitiveness, repurchase intent, price sensitivity |
+| Fashion / Apparel | `fashion-retail` | Highly seasonal, brand mindshare important, high visual social currency | Social currency value, brand premium acceptance, seasonal fit |
+| 3C / Consumer Electronics | `consumer-electronics` | Spec-comparison driven, KOL review ecosystem, medium decision cycle | Tech generational lead, spec persuasiveness, after-sales trust |
+| SaaS | `saas` | Long decision chains, NRR/LTV:CAC core, product stickiness critical | ROI provability, procurement chain complexity, compliance & data security |
+| Mobile Internet | `mobile-app` | Download conversion, retention/DAU core, network effect potential | First-experience conversion rate, retention curve health, network effect strength |
+
+### PMF Review Tribunal
+
+The PMF Tribunal provides multi-dimensional scoring through 3 experts:
+
+| Scoring Dimension (5 default + industry-specific) | Meaning |
+|---------------------------------------------------|---------|
+| `demand_resonance` | Demand resonance |
+| `propagation_potential` | Propagation potential |
+| `competitive_differentiation` | Competitive differentiation |
+| `adoption_friction` | Adoption friction |
+| `sustained_value` | Sustained value |
+| + 2-3 industry-specific dimensions | Dynamically selected by Omniscient based on vertical profile |
+
+### Five-Layer Anti-Optimism-Bias Defense
+
+PMF validation establishes a systematic anti-optimism-bias system to counter LLMs' natural rational optimism tendency:
+
+| Layer | Mechanism | Injection Point |
+|-------|-----------|----------------|
+| L1 | Industry reality anchors | Vertical profiles (real success/failure rates, common causes of death) |
+| L2 | Conservative instructions | Omniscient prompt (take conservative values when evidence is insufficient) |
+| L3 | Realistic behavior anchoring | Star/Sea prompts (industry-specific "silent majority" principle) |
+| L4 | Optimism audit | Tribunal (Devil's advocate audits all high-scoring dimensions) |
+| L5 | Behavioral anchor calibration | Scoring dimensions (3 = most common real-world scenario) |
+
+---
+
 ## 🔮 Infinite Possibilities
 
-Social media is just the beginning. The same CAS engine can be extended to any human social behavior prediction domain by writing new Skill packages — without modifying a single line of core code:
+Social media and PMF validation are just the beginning. The same CAS engine can be extended to any human social behavior prediction domain by writing new Skill packages — without modifying a single line of core code:
 
 | Application | Core Question | Agent Mapping | Ripple Mapping |
 |------------|--------------|--------------|---------------|
-| 🛍️ **Product Market Prediction** | Which product design will resonate more with consumers? | Consumer groups | Product experience / word-of-mouth propagation |
 | 🤝 **Service Acceptance** | How will customers perceive a new service? | Customer groups | Service experience / review diffusion |
 | 📈 **Capital Market Reaction** | How will investors react to an upcoming announcement? | Investor groups | Announcement signals / market sentiment conduction |
 | 📰 **Public Opinion Prediction** | How will public opinion evolve? What strategies can influence the trajectory? | Social groups | Topic events / opinion propagation |
 | 🏢 **Organizational Change** | How will employee acceptance evolve after implementing a new policy? | Departments / Teams | Policy signals / attitude propagation |
 | 🗳️ **Public Decision-Making** | How will the community react to new plans? | Resident groups | Plan announcement / opinion propagation |
 
-**Extension method**: Create a new Skill directory under `skills/`, write domain profiles (domain-profile.md) and role prompts (prompts/*.md) — no engine code modification needed.
+**Extension method**: Create a new Skill directory under `skills/`, write domain profiles (domain-profile.md) and role prompts (prompts/*.md), optionally add Tribunal prompts (tribunal.md) and scoring rubrics (rubrics/). No engine code modification needed.
 
 ---
 
@@ -399,16 +578,19 @@ Social media is just the beginning. The same CAS engine can be extended to any h
 
 ```
 ripple/
-├── engine/                 # 🔬 5-Phase runtime orchestration
-│   ├── runtime.py          #   SimulationRuntime — core orchestration engine
+├── engine/                 # 🔬 Runtime orchestration
+│   ├── runtime.py          #   SimulationRuntime — 5-Phase core orchestration engine
+│   ├── deliberation.py     #   DeliberationOrchestrator — Tribunal debate orchestrator
 │   └── recorder.py         #   SimulationRecorder — incremental JSON recorder
-├── agents/                 # 🤖 Tri-agent system
+├── agents/                 # 🤖 Quad-agent system
 │   ├── omniscient.py       #   👁️ Omniscient — global decision center
 │   ├── star.py             #   🌟 Star — KOL individual decisions
-│   └── sea.py              #   🌊 Sea — population behavior simulation
+│   ├── sea.py              #   🌊 Sea — population behavior simulation
+│   └── tribunal.py         #   ⚖️ Tribunal — multi-expert reviewers
 ├── primitives/             # 📐 CAS core data models
 │   ├── models.py           #   Ripple / Event / Field / PhaseVector / Meme
-│   └── events.py           #   SimulationEvent (progress callback events)
+│   ├── events.py           #   SimulationEvent (progress callback events)
+│   └── pmf_models.py       #   PMF review data models (scores/verdicts/deliberation results)
 ├── skills/                 # 🧩 Skill discovery & loading
 │   ├── manager.py          #   SkillManager — multi-path search & loading
 │   └── validator.py        #   Skill format validation
@@ -420,53 +602,92 @@ ripple/
 │   ├── router.py                     # Model routing + budget control + fallback
 │   └── config.py                     # Config loading (YAML + env vars)
 ├── api/                    # 🚀 Public API
-│   └── simulate.py         #   simulate() — one-click simulation entry point
+│   ├── simulate.py         #   simulate() — one-click simulation entry point
+│   ├── ensemble.py         #   ensemble() — multi-run ensemble execution
+│   └── variant_isolation.py#   Variant isolation support
+├── utils/                  # 🔧 Utilities
+│   └── json_parser.py      #   JSON parsing helpers
 └── prompts.py              # 📝 System prompt templates
 
 skills/
-└── social-media/           # 📱 Social Media Skill (first domain implementation)
-    ├── SKILL.md            #   Skill metadata
-    ├── domain-profile.md   #   Domain profile (general social media knowledge)
-    ├── platforms/           #   7 platform profile files
-    │   ├── xiaohongshu.md  #     🔴 Xiaohongshu (RED)
-    │   ├── douyin.md       #     🎵 Douyin (TikTok CN)
-    │   ├── weibo.md        #     🔥 Weibo
-    │   ├── bilibili.md     #     📺 Bilibili
-    │   ├── zhihu.md        #     💡 Zhihu
-    │   ├── wechat.md       #     💬 WeChat Official Account
-    │   └── generic.md      #     🌐 Generic platform
-    └── prompts/             #   Role prompt templates
-        ├── omniscient.md   #     Omniscient prompt
-        ├── star.md         #     Star agent prompt
-        └── sea.md          #     Sea agent prompt
-
-tests/                       # ✅ Test suite (148 cases, all passing)
-├── agents/                 #   Agent tests
-├── api/                    #   API tests
-├── engine/                 #   Engine tests
-├── integration/            #   Integration tests (end-to-end)
-├── llm/                    #   LLM adapter tests
-├── primitives/             #   Primitive tests
-└── skills/                 #   Skill loading tests
+├── social-media/           # 📱 Social Media Skill (v0.2.0)
+│   ├── SKILL.md            #   Skill metadata
+│   ├── domain-profile.md   #   Domain profile (general social media knowledge)
+│   ├── platforms/           #   7 platform profile files
+│   │   ├── xiaohongshu.md  #     🔴 Xiaohongshu (RED)
+│   │   ├── douyin.md       #     🎵 Douyin (TikTok CN)
+│   │   ├── weibo.md        #     🔥 Weibo
+│   │   ├── bilibili.md     #     📺 Bilibili
+│   │   ├── zhihu.md        #     💡 Zhihu
+│   │   ├── wechat.md       #     💬 WeChat Official Account
+│   │   └── generic.md      #     🌐 Generic platform
+│   ├── prompts/             #   Agent prompt templates
+│   │   ├── omniscient.md   #     Omniscient prompt
+│   │   ├── tribunal.md     #     Propagation calibration Tribunal prompt
+│   │   ├── star.md         #     Star agent prompt
+│   │   └── sea.md          #     Sea agent prompt
+│   └── rubrics/             #   Scoring dimension definitions
+│       └── propagation-calibration.md  # Propagation calibration 5-dimension behavioral anchors
+│
+└── pmf-validation/          # 🎯 PMF Validation Skill (v0.2.0)
+    ├── SKILL.md             #   Skill metadata
+    ├── domain-profile.md    #   Domain profile (PMF methodology)
+    ├── channels/             #   8+1 channel profiles (by propagation mechanism)
+    │   ├── algorithm-ecommerce.md   # Algorithm-driven e-commerce
+    │   ├── search-ecommerce.md      # Search e-commerce
+    │   ├── social-ecommerce.md      # Social e-commerce
+    │   ├── content-seeding.md       # Content seeding
+    │   ├── offline-experience.md    # Offline experience retail
+    │   ├── offline-distribution.md  # Offline distribution retail
+    │   ├── enterprise-sales.md      # Enterprise sales
+    │   ├── app-distribution.md      # App store / digital distribution
+    │   └── generic.md               # 🌐 Generic channel (fallback)
+    ├── verticals/            #   5 industry vertical profiles
+    │   ├── fmcg.md           #     FMCG
+    │   ├── fashion-retail.md #     Fashion / Apparel
+    │   ├── consumer-electronics.md  # 3C / Consumer Electronics
+    │   ├── saas.md           #     SaaS / Software Services
+    │   └── mobile-app.md    #     Mobile Internet Products
+    ├── platforms/            #   3 platform profiles
+    │   ├── xiaohongshu.md   #     🔴 Xiaohongshu (RED)
+    │   ├── douyin.md        #     🎵 Douyin (TikTok CN)
+    │   └── weibo.md         #     🔥 Weibo
+    ├── prompts/              #   Agent prompt templates
+    │   ├── omniscient.md    #     Omniscient prompt
+    │   ├── tribunal.md      #     PMF review Tribunal prompt
+    │   ├── star.md          #     Star agent prompt
+    │   └── sea.md           #     Sea agent prompt
+    └── rubrics/              #   Scoring dimension definitions
+        ├── scorecard-dimensions.md  # PMF scoring dimensions (5 default + 6 extended)
+        └── pmf-grade-rubric.md      # PMF grade criteria
 
 examples/                    # 📖 Examples
-└── e2e_simulation_xiaohongshu.py  # Xiaohongshu full simulation example
+├── e2e_helpers.py                          # End-to-end test helper functions
+├── e2e_simulation_xiaohongshu.py           # Xiaohongshu full simulation example
+├── e2e_simulation_cny_robot_xiaohongshu.py # Xiaohongshu CNY scenario simulation
+└── e2e_pmf_fmcg_algorithm_ecommerce.py     # PMF validation: FMCG × Douyin e-commerce
+
+docs/                        # 📚 Design documents
+└── paper-reviews/          #   Paper review notes
 ```
 
 ---
 
 ## 📋 Project Status
 
-> **v0.1.0 — Core architecture implemented, iterating continuously** 🚧
+> **v0.2.0 — Core architecture + two domain Skills implemented, iterating continuously** 🚧
 
 | Metric | Data |
 |--------|------|
-| Version | `0.1.0` |
-| Core source files | 17 modules |
-| Lines of code | ~5,300 (excluding tests and `__init__`) |
-| Test cases | 148 (all passing ✅, < 0.1s) |
-| Test files | 13 (covering all layers) |
-| Supported platforms | 7 (Xiaohongshu · Douyin · Weibo · Bilibili · Zhihu · WeChat · Generic) |
+| Version | `0.2.0` |
+| Core source files | 23 modules |
+| Test cases | 227 (all passing ✅) |
+| Test files | 29 (covering all layers) |
+| Domain Skills | 2 (social-media v0.2.0 · pmf-validation v0.2.0) |
+| Skill config files | 39 (profiles + prompts + scoring rubrics) |
+| Social media platforms | 7 (Xiaohongshu · Douyin · Weibo · Bilibili · Zhihu · WeChat · Generic) |
+| PMF channels | 9 (8 propagation mechanism channels + 1 generic fallback) |
+| PMF industry verticals | 5 (FMCG · Fashion/Apparel · 3C · SaaS · Mobile Internet) |
 | LLM backends | Anthropic · OpenAI (including compatible protocols) · AWS Bedrock |
 | LLM protocols | Chat Completions · Responses API · Anthropic Messages · Bedrock |
 | Python | ≥ 3.11 |
@@ -485,6 +706,42 @@ examples/                    # 📖 Examples
 | Output Format | JSON | Lightweight, readable, no external database dependency |
 | Testing | pytest + pytest-asyncio | Standard async testing solution |
 | Agent Framework | **None** | Minimalist design, pure native Python implementation |
+
+---
+
+## 📚 Document Index
+
+### Design Documents
+
+| Document | Description |
+|----------|-------------|
+| [`2026-02-15-ripple-omniscient-architecture-design.md`](docs/plans/2026-02-15-ripple-omniscient-architecture-design.md) | Omniscient-centric architecture design |
+| [`2026-02-15-ripple-implementation-plan.md`](docs/plans/2026-02-15-ripple-implementation-plan.md) | Core implementation plan |
+| [`2026-02-16-cas-accumulative-activation-design.md`](docs/plans/2026-02-16-cas-accumulative-activation-design.md) | CAS accumulative activation mechanism design |
+| [`2026-02-16-platform-profile-injection-design.md`](docs/plans/2026-02-16-platform-profile-injection-design.md) | Platform profile injection design |
+| [`2026-02-16-prediction-optimization-design.md`](docs/plans/2026-02-16-prediction-optimization-design.md) | Prediction optimization design |
+| [`2026-02-18-pmf-validation-design.md`](docs/plans/2026-02-18-pmf-validation-design.md) | PMF validation architecture design |
+| [`2026-02-22-pmf-skill-optimization-design.md`](docs/plans/2026-02-22-pmf-skill-optimization-design.md) | PMF Skill deep optimization (channels/verticals/anti-optimism-bias) |
+| [`2026-02-22-social-media-tribunal-design.md`](docs/plans/2026-02-22-social-media-tribunal-design.md) | Social media Tribunal design |
+
+### Paper Review Notes
+
+| Document | Description |
+|----------|-------------|
+| [`OASIS-open-agent-social-interaction-simulations.md`](docs/paper-reviews/OASIS-open-agent-social-interaction-simulations.md) | OASIS paper review notes |
+| [`generative-agents-interactive-simulacra.md`](docs/paper-reviews/generative-agents-interactive-simulacra.md) | Generative Agents paper review notes |
+
+### Platform Profiles (Social Media)
+
+| Document | Description |
+|----------|-------------|
+| [`xiaohongshu.md`](skills/social-media/platforms/xiaohongshu.md) | 🔴 Xiaohongshu (RED) platform profile |
+| [`douyin.md`](skills/social-media/platforms/douyin.md) | 🎵 Douyin (TikTok CN) platform profile |
+| [`weibo.md`](skills/social-media/platforms/weibo.md) | 🔥 Weibo platform profile |
+| [`bilibili.md`](skills/social-media/platforms/bilibili.md) | 📺 Bilibili platform profile |
+| [`zhihu.md`](skills/social-media/platforms/zhihu.md) | 💡 Zhihu platform profile |
+| [`wechat.md`](skills/social-media/platforms/wechat.md) | 💬 WeChat Official Account platform profile |
+| [`generic.md`](skills/social-media/platforms/generic.md) | 🌐 Generic platform profile |
 
 ---
 
@@ -509,6 +766,7 @@ Ripple is a **completely independent project** that draws on OASIS's core idea o
 | **Simulation Granularity** | One user = one Agent | One population = one Agent |
 | **Domain Scope** | Social media | Any human social behavior |
 | **Prediction Output** | Deterministic | Probabilistic predictions with confidence |
+| **Prediction Calibration** | None | Tribunal multi-expert structured debate |
 | **LLM Call Volume** | O(N), scales linearly with user count | O(K), depends only on number of populations |
 | **Emergence Capture** | Natural emergence via per-person interaction | CAS theory-driven + LLM dynamic inference |
 | **Agent Framework** | CAMEL-AI | Native Python (no framework dependency) |

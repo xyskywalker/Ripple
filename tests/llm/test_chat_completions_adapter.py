@@ -1,11 +1,11 @@
 # test_chat_completions_adapter.py
 # =============================================================================
-# ChatCompletionsAdapter 单元测试
-# - URL 补全逻辑
-# - Azure 检测
-# - 请求构建
-# - 响应解析
-# - from_endpoint_config 工厂方法
+# ChatCompletionsAdapter 单元测试 / ChatCompletionsAdapter unit tests
+# - URL 补全逻辑 / URL completion logic
+# - Azure 检测 / Azure detection
+# - 请求构建 / Request building
+# - 响应解析 / Response parsing
+# - from_endpoint_config 工厂方法 / Factory method
 # =============================================================================
 
 import pytest
@@ -14,7 +14,7 @@ from ripple.llm.chat_completions_adapter import ChatCompletionsAdapter
 
 
 class TestResolveEndpoint:
-    """URL 补全逻辑测试。"""
+    """URL 补全逻辑测试。 / URL completion logic tests."""
 
     def test_appends_chat_completions_to_base_url(self):
         result = ChatCompletionsAdapter._resolve_endpoint(
@@ -55,7 +55,7 @@ class TestResolveEndpoint:
 
 
 class TestDetectAzure:
-    """Azure 域名检测测试。"""
+    """Azure 域名检测测试。 / Azure domain detection tests."""
 
     def test_detects_cognitiveservices(self):
         assert ChatCompletionsAdapter._detect_azure(
@@ -84,7 +84,7 @@ class TestDetectAzure:
 
 
 class TestBuildRequest:
-    """请求构建测试。"""
+    """请求构建测试。 / Request building tests."""
 
     def test_includes_system_and_user_messages(self):
         adapter = ChatCompletionsAdapter(
@@ -132,7 +132,7 @@ class TestBuildRequest:
 
 
 class TestExtractText:
-    """响应解析测试。"""
+    """响应解析测试。 / Response parsing tests."""
 
     def test_extracts_from_standard_response(self):
         data = {
@@ -150,7 +150,7 @@ class TestExtractText:
 
 
 class TestFromEndpointConfig:
-    """工厂方法测试。"""
+    """工厂方法测试。 / Factory method tests."""
 
     def test_raises_without_url(self):
         class FakeConfig:

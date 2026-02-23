@@ -9,18 +9,10 @@
 </p>
 
 <p align="center">
-  <a href="README.md">中文</a> | <a href="README_EN.md">English</a>
-</p>
-
-<p align="center">
-  <a href="https://x.com/_xyplus_"><img src="https://img.shields.io/badge/X-@__xyplus__-black?logo=x&logoColor=white" alt="X (Twitter)"></a>
-  <a href="mailto:xypluslab@gmail.com"><img src="https://img.shields.io/badge/email-xypluslab%40gmail.com-blue?logo=gmail&logoColor=white" alt="Email"></a>
-</p>
-
-<p align="center">
   <img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/version-0.1.0-green" alt="Version">
-  <img src="https://img.shields.io/badge/tests-148%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/version-0.2.0-green" alt="Version">
+  <img src="https://img.shields.io/badge/tests-227%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/skills-2-teal" alt="Skills">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-orange" alt="License">
   <img src="https://img.shields.io/badge/LLM-Anthropic%20%7C%20OpenAI%20%7C%20Bedrock-purple" alt="LLM">
 </p>
@@ -33,19 +25,21 @@
 1. [项目简介](#-项目简介)
 2. [设计理念](#-设计理念)
 3. [核心概念：CAS 如何驱动预测](#-核心概念cas-如何驱动预测)
-4. [星海架构](#-星海架构)
-5. [五相运行时引擎](#-五相运行时引擎)
+4. [星海合议架构](#-星海合议架构)
+5. [运行时引擎](#-运行时引擎)
 6. [系统架构](#-系统架构)
 7. [快速开始](#-快速开始)
 8. [成本对比](#-成本对比)
 9. [社交媒体：第一个领域实现](#-社交媒体第一个领域实现)
-10. [无限可能](#-无限可能)
-11. [工程结构](#-工程结构)
-12. [项目状态](#-项目状态)
-13. [技术栈](#-技术栈)
-14. [灵感来源：OASIS](#-灵感来源oasis)
-15. [致谢](#-致谢)
-16. [许可证](#-许可证)
+10. [PMF 验证：第二个领域实现](#-pmf-验证第二个领域实现)
+11. [无限可能](#-无限可能)
+12. [工程结构](#-工程结构)
+13. [项目状态](#-项目状态)
+14. [技术栈](#-技术栈)
+15. [文档索引](#-文档索引)
+16. [灵感来源：OASIS](#-灵感来源oasis)
+17. [致谢](#-致谢)
+18. [许可证](#-许可证)
 
 </details>
 
@@ -57,13 +51,18 @@
 
 社会中的信息传播犹如水面的涟漪——一颗石子投入水中，波纹从中心向外扩散，与其他波纹相遇时产生叠加、干涉、共振或抵消。Ripple 将这一物理直觉编码为可计算的引擎：**信号在智能体间传播能量，产生涌现、非线性放大、反馈环和相变**——这也正是本项目名称的由来。
 
-**社交媒体内容传播模拟**是 Ripple 实现的第一个应用场景：输入一条计划发布的内容，系统通过多智能体模拟，输出含置信度的传播预测、系统动力学诊断和可操作的优化建议。
+Ripple 目前已实现**两个应用场景**：
+
+- **📱 社交媒体内容传播预测**：输入一条计划发布的内容，系统通过多智能体模拟，输出含置信度的传播预测、系统动力学诊断和可操作的优化建议
+- **🎯 PMF（产品市场契合度）验证**：输入产品方案与目标市场，系统模拟消费者群体的真实反应，输出多维度 PMF 评分、风险诊断和改进策略
+
+两个场景均引入了**合议庭（Tribunal）机制**——通过多专家结构化辩论，系统性对抗 LLM 的乐观偏误，确保预测结果的现实性。
 
 ### 项目定位
 
 - 🔬 独立项目，灵感来自 [OASIS](https://github.com/camel-ai/oasis) 的多智能体社交模拟思路
 - 🎯 面向实际应用场景（内容创作、产品市场分析、舆论研判），而非学术研究
-- 🌐 CAS 内核完全领域无关，社交媒体只是第一个应用场景
+- 🌐 CAS 内核完全领域无关，社交媒体和 PMF 验证是前两个应用场景
 - ⚡ 追求极致的实用性和成本效率——相比 OASIS，LLM 调用量压缩约 **3 个数量级**
 
 ---
@@ -78,15 +77,16 @@
 
 一改 OASIS "一人一 Agent" 的个体模拟架构，Ripple 采用**群体模拟**思路。真实社交网络中，大多数普通用户的行为呈现群体统计特征——Ripple 将具有相似属性的用户聚合为一个群体智能体，用统计分布替代逐人模拟，将 **LLM 调用数量降低约 3 个数量级**，同时通过 CAS 理论框架保留了涌现行为的捕捉能力。
 
-### 3. ⭐🌊 独创"星海架构"
+### 3. ⭐🌊 独创"星海合议架构"
 
-Ripple 提出独创的 **星海（Star-Sea）三体智能体架构**：
+Ripple 提出独创的 **星海合议（Star-Sea-Tribunal）四体智能体架构**：
 
 - **🌟 星（Star）智能体**：高声量个体（KOL/意见领袖）延续个体模拟，保留个性化决策能力
 - **🌊 海（Sea）智能体**：普通用户群体采用群体模拟，以统计分布刻画集体行为
 - **👁️ 全视者（Omniscient）智能体**：上帝视角的全局编排者，统筹传播裁决、环境观测与系统调控
+- **⚖️ 合议庭（Tribunal）智能体**：多专家评审团，通过结构化辩论校准预测结果
 
-三者协同形成 **"个体精准 + 群体高效 + 全局统筹"** 的最优资源分配格局。
+四者协同形成 **"个体精准 + 群体高效 + 全局统筹 + 多元校准"** 的最优资源分配格局。
 
 ### 4. 🤖 Agent-Native
 
@@ -94,15 +94,19 @@ Ripple 提出独创的 **星海（Star-Sea）三体智能体架构**：
 
 ### 5. ✨ 极简设计
 
-尽可能简化系统架构：**未使用任何三方 Agent 框架**，纯 Python + httpx 直连多家 LLM API。17 个核心模块，约 5,300 行源代码——追求用最少的代码实现最完整的 CAS 模拟能力。
+尽可能简化系统架构：**未使用任何三方 Agent 框架**，纯 Python + httpx 直连多家 LLM API。23 个核心模块——追求用最少的代码实现最完整的 CAS 模拟能力。
 
 ### 6. 🧩 领域分离与 Skill 架构
 
-核心 CAS 引擎完全领域无关——不知道什么是"点赞"、"流量池"或"CES 分数"。所有领域知识通过 **Skill 包** 注入：纯自然语言的领域画像 + 平台画像 + 角色 Prompt，实现**零代码扩展新领域**。
+核心 CAS 引擎完全领域无关——不知道什么是"点赞"、"流量池"或"PMF 分数"。所有领域知识通过 **Skill 包** 注入：纯自然语言的领域画像 + 平台/渠道/行业画像 + 角色 Prompt，实现**零代码扩展新领域**。
 
-### 7. 🔍 直观可追溯
+### 7. ⚖️ 合议庭校准机制
 
-模拟过程全链路可观测：每一轮 Wave 的全视者裁决、每个智能体的响应决策、涟漪的传播路径和能量变化——全部增量记录为结构化 JSON。预测结果附带**置信度评估**，让用户清楚知道模型"多确定"或"多不确定"。
+引入**合议庭（Tribunal）**多专家评审架构，通过结构化辩论流程——**独立评审 → 交叉质疑 → 修正立场 → 合成裁定**——系统性对抗 LLM 的乐观偏误。不同领域的合议庭配置不同的专家角色、评分维度和审查标准，但共享同一套辩论机制。配合**反乐观偏误五层防线**（行业现实锚点 → 保守性指令 → 现实行为锚定 → 乐观审计 → 行为锚点校准），确保预测结果贴近现实。
+
+### 8. 🔍 直观可追溯
+
+模拟过程全链路可观测：每一轮 Wave 的全视者裁决、每个智能体的响应决策、涟漪的传播路径和能量变化、合议庭的评审过程和辩论记录——全部增量记录为结构化 JSON。预测结果附带**置信度评估**，让用户清楚知道模型"多确定"或"多不确定"。
 
 ---
 
@@ -132,35 +136,42 @@ Ripple 提出独创的 **星海（Star-Sea）三体智能体架构**：
 
 ---
 
-## ⭐ 星海架构
+## ⭐ 星海合议架构
 
-Ripple 的三体智能体架构是理解整个系统的关键：
+Ripple 的四体智能体架构是理解整个系统的关键：
 
 <p align="center">
-  <img src="misc/omniscient_agent_architecture_pro.png" alt="星海架构图" width="480" />
+  <img src="misc/tribunal_architecture_cn.png" alt="星海合议架构" width="600" />
 </p>
 
 | 智能体 | 映射对象 | 模拟粒度 | LLM 模型 | 职责 |
 |--------|---------|---------|---------|------|
-| **👁️ 全视者** | 系统本身 | 全局 | 高智能（Qwen3.5-Plus / Doubao-Seed-2.0-Pro） | 初始化、传播裁决、观测、合成 |
+| **👁️ 全视者** | 系统本身 | 全局 | 高智能（Qwen3.5-Plus / Doubao-Seed-2.0-Pro） | 初始化、传播裁决、观测、合议庭主持、最终合成 |
 | **🌟 星** | KOL / 意见领袖 | 个体 | 高质量（Doubao-Seed-2.0-Lite / DeepSeek-V3.2） | 个性化内容决策、影响力传播 |
 | **🌊 海** | 普通用户群体 | 群体 | 轻量（Doubao-Seed-2.0-Mini / Qwen3-Flash） | 统计化群体响应、互动行为 |
+| **⚖️ 合议庭** | 领域专家评审团 | 全局 | 高智能（与全视者同级） | 多维度评审、交叉质疑、反乐观校准 |
+
+### 合议庭在不同领域的角色配置
+
+合议庭的核心机制（evaluate → challenge → revise → synthesize）跨领域通用，但专家角色和评分维度因领域而异：
+
+| 维度 | 社交媒体合议庭 | PMF 验证合议庭 |
+|------|--------------|---------------|
+| **使命** | 传播预测现实性校准 | 多维度产品市场匹配度评分 |
+| **成员** | 传播动力学专家 · 平台生态专家 · 魔鬼代言人 | 市场分析专家 · 用户代言人 · 魔鬼代言人 |
+| **评分语义** | 高分 = 预测合理且有强证据 | 高分 = 强 PMF 信号 |
+| **3 分含义** | 模拟预测符合基准现实 | 产品在该维度表现一般 |
+| **核心关注** | 传播预测是否过度乐观 | 产品需求是否真实 |
 
 ---
 
-## 🔄 五相运行时引擎
+## 🔄 运行时引擎
 
-全视者驱动的 5-Phase Wave 执行循环：
+全视者驱动的 5-Phase Wave 执行循环，配合可选的 DELIBERATE 合议庭审议阶段：
 
-```
-Phase 0        Phase 1         Phase 2          Phase 3           Phase 4
- INIT    ──▶    SEED    ──▶    RIPPLE    ──▶    OBSERVE    ──▶    FEEDBACK
-                                                                  & RECORD
- 全视者          全视者          Star/Sea         全视者              引擎
- 初始化场景      播种涟漪        响应与传播       全局观测分析        记录 & 循环判定
- 构建拓扑        确定种子        能量衰减传导     相态判定             ──▶ 下一轮 Wave
- 估计总waves     激活Agent       语义变异         涌现检测                 或终止
-```
+<p align="center">
+  <img src="misc/architecture_cn.png" alt="5-Phase 运行时引擎" width="700" />
+</p>
 
 ### 各 Phase 详解
 
@@ -171,16 +182,15 @@ Phase 0        Phase 1         Phase 2          Phase 3           Phase 4
 | **Phase 2** | RIPPLE | Star & Sea | 被激活的智能体接收涟漪并决策响应（放大/吸收/变异/忽略） |
 | **Phase 3** | OBSERVE | 全视者 | 聚合宏观指标、观测系统状态、判定相态变化 |
 | **Phase 4** | FEEDBACK & RECORD | 引擎 | 记录 Wave 数据、更新 Field 状态、判定终止条件或进入下一轮 |
+| **Extra** | DELIBERATE | 全视者 + 合议庭 | 多专家评审模拟结果、结构化辩论、反乐观校准、合成最终裁定 |
 
 ---
 
 ## 🏗️ 系统架构
 
 <p align="center">
-  <img src="misc/ripple_cas_architecture.png" alt="系统架构图" width="480" />
+  <img src="misc/layered_architecture_cn.png" alt="系统架构" width="700" />
 </p>
-
-**依赖方向**（严格单向）：应用层 → Skill 层 → CAS 引擎 → LLM 适配层
 
 ---
 
@@ -220,13 +230,13 @@ cp llm_config.example.yaml llm_config.yaml
 
 ### 三级模型推荐
 
-Ripple 的三体智能体对 LLM 有不同的能力需求，推荐按以下三级选型（成本不敏感时所有模型均可使用高智能级别，实现更好的模拟效果）：
+Ripple 的四体智能体对 LLM 有不同的能力需求，推荐按以下三级选型（成本不敏感时所有模型均可使用高智能级别，实现更好的模拟效果）：
 
 | 级别 | 适用角色 | 推荐模型 | 说明 |
 |------|---------|---------|------|
-| 🧠 **高智能** | 全视者（Omniscient） | Qwen3.5-Plus / Doubao-Seed-2.0-Pro | 需要深度推理与全局决策能力，负责 CAS 全局编排 |
-| ⚡ **高质量** | 星智能体（Star） | Doubao-Seed-2.0-Lite / DeepSeek-V3.2 | 兼顾质量与速度，负责 KOL 个性化决策 |
-| 🪶 **轻量** | 海智能体（Sea） | Doubao-Seed-2.0-Mini / Qwen3-Flash | 低时延高并发，负责群体行为的统计化模拟 |
+| 🧠 **高智能** | 全视者 + 合议庭 | Qwen3.5-Plus / Doubao-Seed-2.0-Pro | 需要深度推理与全局决策能力 |
+| ⚡ **高质量** | 星智能体（Star） | Doubao-Seed-2.0-Lite / DeepSeek-V3.2 | 兼顾质量与速度，负责个性化决策 |
+| 🪶 **轻量** | 海智能体（Sea） | Doubao-Seed-2.0-Mini / Qwen3-Flash | 低时延高并发，负责群体行为模拟 |
 
 > 💡 以上均为国产大模型推荐。同样支持 Anthropic（Claude Opus/Sonnet/Haiku）、OpenAI（GPT-5.2）等海外模型，详见 `llm_config.example.yaml`。
 
@@ -278,7 +288,49 @@ sea:
   temperature: 0.5
 ```
 
-### 基础用法
+### 端到端模拟示例（推荐）
+
+项目 `examples/` 目录下提供了开箱即用的完整端到端模拟脚本，包含真实样本数据、进度回调和模拟后解读报告生成——**建议首次体验从这里开始**。
+
+**社交媒体模拟 — 小红书 48h 传播预测**
+
+```bash
+# 基础模式（仅话题）
+python examples/e2e_simulation_xiaohongshu.py basic
+
+# 增强模式（话题 + 账号画像 + 历史数据）
+python examples/e2e_simulation_xiaohongshu.py enhanced
+
+# 运行全部模式
+python examples/e2e_simulation_xiaohongshu.py all
+
+# 自定义参数
+python examples/e2e_simulation_xiaohongshu.py basic --waves 4 --no-report
+```
+
+**社交媒体模拟 — 春晚机器人话题（场景示例）**
+
+```bash
+python examples/e2e_simulation_cny_robot_xiaohongshu.py
+python examples/e2e_simulation_cny_robot_xiaohongshu.py --waves 4
+```
+
+**PMF 验证 — 快消品×抖音电商**
+
+```bash
+# 基础模式（仅产品信息）
+python examples/e2e_pmf_fmcg_algorithm_ecommerce.py basic
+
+# 增强模式（产品 + 品牌账号 + 历史数据）
+python examples/e2e_pmf_fmcg_algorithm_ecommerce.py enhanced
+
+# 运行全部模式
+python examples/e2e_pmf_fmcg_algorithm_ecommerce.py all
+```
+
+> 💡 所有脚本自动读取 `llm_config.yaml` 配置，输出 JSON 结果文件和 Markdown 压缩日志。使用 `--no-report` 跳过模拟后的 LLM 解读报告生成。
+
+### 社交媒体模拟
 
 ```python
 import asyncio
@@ -295,7 +347,7 @@ async def main():
         },
         skill="social-media",
         platform="xiaohongshu",
-        simulation_horizon="48h",       # 模拟发布后 48 小时
+        simulation_horizon="48h",
     )
 
     print(f"模拟完成！结果已保存至: {result['output_file']}")
@@ -303,19 +355,49 @@ async def main():
 asyncio.run(main())
 ```
 
-### 切换平台
-
-只需修改 `platform` 参数即可切换不同社交媒体平台：
+### PMF 验证
 
 ```python
-# 小红书
+import asyncio
+from ripple.api.simulate import simulate
+
+async def main():
+    result = await simulate(
+        event={
+            "name": "清泉气泡水",
+            "category": "0糖气泡水",
+            "description": "主打'真实果汁+0糖0脂'，巴氏鲜榨果汁工艺，建议零售价6.8元/瓶",
+            "differentiators": ["巴氏鲜榨果汁工艺", "0糖0脂0卡", "天然气泡水源"],
+            "competitive_landscape": "直接竞品：元气森林、喜茶气泡水；品类已从蓝海转为红海",
+        },
+        skill="pmf-validation",
+        platform="douyin",
+        channel="algorithm-ecommerce",
+        vertical="fmcg",
+        simulation_horizon="72h",
+        deliberation_rounds=3,
+    )
+
+    print(f"PMF 验证完成！结果已保存至: {result['output_file']}")
+
+asyncio.run(main())
+```
+
+### 切换平台 / 渠道 / 行业
+
+```python
+# 社交媒体：切换平台
 await simulate(event=event, skill="social-media", platform="xiaohongshu")
-
-# 抖音
 await simulate(event=event, skill="social-media", platform="douyin")
+await simulate(event=event, skill="social-media", platform="weibo")
 
-# 微博 / B站 / 知乎 / 微信公众号 / 通用
-# platform="weibo" / "bilibili" / "zhihu" / "wechat" / "generic"
+# PMF 验证：Channel × Vertical × Platform 自由组合
+await simulate(event=event, skill="pmf-validation",
+               channel="algorithm-ecommerce", vertical="fmcg", platform="douyin")
+await simulate(event=event, skill="pmf-validation",
+               channel="search-ecommerce", vertical="consumer-electronics", platform="xiaohongshu")
+await simulate(event=event, skill="pmf-validation",
+               channel="enterprise-sales", vertical="saas")
 ```
 
 ### 运行测试
@@ -336,12 +418,13 @@ pytest -v
 |--|-----------------|--------------------------|
 | 理论范式 | 多智能体模拟 | **复杂自适应系统（CAS）** |
 | 模拟粒度 | 一个用户 = 一个 Agent | **一个群体 = 一个 Agent** |
-| LLM 调用/次模拟 | ~300,000 | **~50-150**（典型场景） |
+| LLM 调用/次模拟 | ~300,000 | **~100–500**（各领域不同） |
 | 运行时间 | 小时级 | **分钟级** |
 | 预测输出 | 确定性单值 | **含置信度的预测 + 动力学诊断 + 优化建议** |
+| 预测校准 | 无 | **合议庭多专家审议 + 反乐观偏误校准** |
 | 跨群体交互 | 有（逐人级） | **有（涌现式，群体级）** |
 | 反馈建模 | 有（逐人级） | **有（正/负反馈 + 相变）** |
-| 领域通用性 | 社交媒体 | **任意人类社会行为** |
+| 领域通用性 | 社交媒体 | **任意人类社会行为（已实现 2 个领域）** |
 | Agent 框架 | CAMEL-AI | **原生 Python（无框架依赖）** |
 | 平台适配 | 代码级实现 | **纯自然语言画像驱动（零代码）** |
 | vs OASIS 压缩比 | — | **~3 个数量级** |
@@ -350,7 +433,7 @@ pytest -v
 
 ## 📱 社交媒体：第一个领域实现
 
-社交媒体内容传播是 CAS 引擎的**第一个应用场景**。通过 `social-media` Skill，CAS 原语被映射为具体的社交媒体概念：
+社交媒体内容传播是 CAS 引擎的**第一个应用场景**。通过 `social-media` Skill（v0.2.0），CAS 原语被映射为具体的社交媒体概念：
 
 | CAS 原语 | 社交媒体概念 | 说明 |
 |----------|-------------|------|
@@ -360,6 +443,19 @@ pytest -v
 | Field | 平台环境 | 推荐算法、注意力分配、竞争内容池 |
 | Event | 互动行为 | 点赞/收藏/评论/转发/关注/忽略 |
 | PhaseVector | 传播阶段 | 种子期 → 增长 → 爆发 → 衰退 |
+| Tribunal | 传播校准合议庭 | 传播动力学专家 · 平台生态专家 · 魔鬼代言人 |
+
+### 传播校准合议庭
+
+社交媒体 Skill 引入合议庭作为**传播预测校准层**，在模拟完成后由 3 位专家对传播结果进行现实性审查：
+
+| 评分维度 | 含义 |
+|---------|------|
+| `reach_realism` | 触达规模合理性 |
+| `decay_realism` | 衰减曲线合理性 |
+| `virality_plausibility` | 病毒传播路径可信度 |
+| `audience_activation` | 受众激活比例合理性 |
+| `timeline_realism` | 时间线合理性 |
 
 ### 已支持 7 个平台
 
@@ -377,20 +473,95 @@ pytest -v
 
 ---
 
+## 🎯 PMF 验证：第二个领域实现
+
+PMF（Product-Market Fit，产品市场契合度）验证是 CAS 引擎的**第二个应用场景**。通过 `pmf-validation` Skill，CAS 原语被映射为产品市场验证的核心概念：
+
+| CAS 原语 | PMF 验证概念 | 说明 |
+|----------|-------------|------|
+| Ripple（涟漪） | 产品信号传播波 | 产品体验/口碑在目标群体中的扩散过程 |
+| Star Agent | 行业 KOL / 意见领袖 | 关键评测者、行业专家、早期采纳者 |
+| Sea Agent | 目标消费者群体 | 按画像特征聚合的潜在用户群体 |
+| Field | 市场环境 | 渠道生态、竞争格局、消费趋势 |
+| Event | 消费者行为 | 关注/试用/购买/复购/推荐/放弃 |
+| PhaseVector | 市场渗透阶段 | 认知期 → 试用期 → 增长期 → 成熟期 |
+| Tribunal | PMF 评审合议庭 | 市场分析专家 · 用户代言人 · 魔鬼代言人 |
+
+### Channel × Vertical × Platform 正交组合
+
+PMF 验证采用三维正交架构，三个维度独立选择、自由组合：
+
+```
+Channel（渠道：按传播机制分类）
+    ×
+Vertical（行业垂类：行业 knowhow 注入）
+    ×
+Platform（平台：具体平台画像）
+```
+
+### 8 渠道（按传播机制分类）
+
+| 渠道 | 标识 | 核心传播机制 | 代表性场景 |
+|------|------|------------|-----------|
+| 算法推荐电商 | `algorithm-ecommerce` | 算法匹配 → 兴趣激发 → 冲动决策 | 抖音电商、快手电商 |
+| 搜索电商 | `search-ecommerce` | 主动搜索 → 评价级联 → 理性比较 | 天猫、京东 |
+| 社交电商 | `social-ecommerce` | 关系链传播 → 信任背书 → 社交裂变 | 微信小程序商城、拼团 |
+| 内容种草 | `content-seeding` | 内容驱动 → 搜索沉淀 → 长尾转化 | 小红书购物笔记、B站测评 |
+| 线下体验零售 | `offline-experience` | 体验→口碑、地理辐射、导购驱动 | 品牌直营店、百货专柜 |
+| 线下流通零售 | `offline-distribution` | 货架可见性 → 即时决策 → 复购惯性 | 商超、便利店 |
+| 企业级销售 | `enterprise-sales` | 决策链驱动 → 同行参考 → 长周期转化 | SaaS 直销、B2B 服务 |
+| 应用商店 | `app-distribution` | 榜单+评分 → 推荐位 → 下载转化 | App Store、微信小程序 |
+
+### 5 行业垂类
+
+| 行业 | 标识 | 核心特征 | 专属评分维度 |
+|------|------|---------|------------|
+| 快消品 | `fmcg` | 高频消费、复购驱动、渠道渗透率关键 | 货架竞争力、复购意愿、价格敏感度 |
+| 时尚/鞋服 | `fashion-retail` | 季节性强、品牌心智重要、视觉社交货币高 | 社交货币价值、品牌溢价接受度、季节适配性 |
+| 3C/消费电子 | `consumer-electronics` | 参数对比驱动、KOL 测评体系、决策周期中等 | 技术代际领先度、参数说服力、售后信任度 |
+| SaaS | `saas` | 决策链长、NRR/LTV:CAC 核心、产品粘性关键 | ROI 可证性、采购决策链复杂度、合规与数据安全 |
+| 移动互联网 | `mobile-app` | 下载转化、留存/DAU 核心、网络效应潜力 | 首次体验转化率、留存曲线健康度、网络效应强度 |
+
+### PMF 评审合议庭
+
+PMF 合议庭通过 3 位专家对产品市场契合度进行多维度评分：
+
+| 评分维度（5 个默认 + 行业专属） | 含义 |
+|-------------------------------|------|
+| `demand_resonance` | 需求共鸣度 |
+| `propagation_potential` | 传播潜力 |
+| `competitive_differentiation` | 竞争差异化 |
+| `adoption_friction` | 采纳摩擦 |
+| `sustained_value` | 持续价值 |
+| + 行业专属 2-3 个维度 | 由全视者根据行业画像动态选择 |
+
+### 反乐观偏误五层防线
+
+PMF 验证建立了系统性的反乐观偏误体系，对抗 LLM 天然的理性乐观倾向：
+
+| 层级 | 机制 | 作用位置 |
+|------|------|---------|
+| L1 | 行业现实锚点 | Vertical 画像（真实成功率/失败率/常见死因） |
+| L2 | 保守性指令 | 全视者 Prompt（证据不充分时取保守值） |
+| L3 | 现实行为锚定 | Star/Sea Prompt（"沉默多数"原则行业化表达） |
+| L4 | 乐观审计 | 合议庭（魔鬼代言人审计所有高分维度） |
+| L5 | 行为锚点校准 | 评分维度（3 分 = 现实中最常见的情况） |
+
+---
+
 ## 🔮 无限可能
 
-社交媒体只是起点。同一套 CAS 引擎无需修改一行核心代码，通过编写新的 Skill 包即可扩展至任意人类社会行为预测领域：
+社交媒体和 PMF 验证只是起点。同一套 CAS 引擎无需修改一行核心代码，通过编写新的 Skill 包即可扩展至任意人类社会行为预测领域：
 
 | 应用场景 | 核心问题 | Agent 映射 | Ripple 映射 |
 |----------|---------|-----------|------------|
-| 🛍️ **产品市场预测** | 哪款产品设计更能获得消费者青睐？ | 消费者群体 | 产品体验/口碑传播 |
 | 🤝 **服务认可度** | 客户对新服务的认可度如何？ | 客户群体 | 服务体验/评价扩散 |
 | 📈 **资本市场反应** | 投资人对即将发表的公告会做出何种反应？ | 投资者群体 | 公告信号/市场情绪传导 |
 | 📰 **舆情预测与干预** | 舆情未来会如何发酵？采用何种策略可以影响走向？ | 社会群体 | 话题事件/观点传播 |
 | 🏢 **组织变革** | 新政策推行后员工的接受度如何演化？ | 部门/团队 | 政策信号/态度传播 |
 | 🗳️ **公共决策** | 社区对新规划的反应如何？ | 居民群体 | 方案公示/意见传播 |
 
-**扩展方式**：在 `skills/` 下创建新的 Skill 目录，编写领域画像（domain-profile.md）和角色 Prompt（prompts/*.md），无需修改引擎代码。
+**扩展方式**：在 `skills/` 下创建新的 Skill 目录，编写领域画像（domain-profile.md）和角色 Prompt（prompts/*.md），可选添加合议庭 Prompt（tribunal.md）和评分维度（rubrics/），无需修改引擎代码。
 
 ---
 
@@ -398,16 +569,19 @@ pytest -v
 
 ```
 ripple/
-├── engine/                 # 🔬 5-Phase 运行时编排
-│   ├── runtime.py          #   SimulationRuntime — 核心编排引擎
+├── engine/                 # 🔬 运行时编排
+│   ├── runtime.py          #   SimulationRuntime — 5-Phase 核心编排引擎
+│   ├── deliberation.py     #   DeliberationOrchestrator — 合议庭辩论编排器
 │   └── recorder.py         #   SimulationRecorder — 增量 JSON 记录器
-├── agents/                 # 🤖 三体智能体
+├── agents/                 # 🤖 四体智能体
 │   ├── omniscient.py       #   👁️ 全视者 — 全局决策中心
 │   ├── star.py             #   🌟 星 — KOL 个体决策
-│   └── sea.py              #   🌊 海 — 群体行为模拟
+│   ├── sea.py              #   🌊 海 — 群体行为模拟
+│   └── tribunal.py         #   ⚖️ 合议庭 — 多专家评审员
 ├── primitives/             # 📐 CAS 核心数据模型
 │   ├── models.py           #   Ripple / Event / Field / PhaseVector / Meme
-│   └── events.py           #   SimulationEvent（进度回调事件）
+│   ├── events.py           #   SimulationEvent（进度回调事件）
+│   └── pmf_models.py       #   PMF 评审数据模型（评分/裁定/合议结果）
 ├── skills/                 # 🧩 Skill 发现与加载
 │   ├── manager.py          #   SkillManager — 多路径搜索与加载
 │   └── validator.py        #   Skill 格式校验
@@ -419,53 +593,92 @@ ripple/
 │   ├── router.py                     # 模型路由 + 预算管控 + 降级
 │   └── config.py                     # 配置加载（YAML + 环境变量）
 ├── api/                    # 🚀 公共 API
-│   └── simulate.py         #   simulate() — 一键模拟入口
+│   ├── simulate.py         #   simulate() — 一键模拟入口
+│   ├── ensemble.py         #   ensemble() — 多轮集成运行
+│   └── variant_isolation.py#   变体隔离支持
+├── utils/                  # 🔧 工具函数
+│   └── json_parser.py      #   JSON 解析辅助
 └── prompts.py              # 📝 系统 Prompt 模板
 
 skills/
-└── social-media/           # 📱 社交媒体 Skill（第一个领域实现）
-    ├── SKILL.md            #   Skill 元数据
-    ├── domain-profile.md   #   领域画像（通用社交媒体知识）
-    ├── platforms/           #   7 个平台画像文件
-    │   ├── xiaohongshu.md  #     🔴 小红书
-    │   ├── douyin.md       #     🎵 抖音
-    │   ├── weibo.md        #     🔥 微博
-    │   ├── bilibili.md     #     📺 B 站
-    │   ├── zhihu.md        #     💡 知乎
-    │   ├── wechat.md       #     💬 微信公众号
-    │   └── generic.md      #     🌐 通用平台
-    └── prompts/             #   角色 Prompt 模板
-        ├── omniscient.md   #     全视者 Prompt
-        ├── star.md         #     星智能体 Prompt
-        └── sea.md          #     海智能体 Prompt
-
-tests/                       # ✅ 测试体系（148 用例，全部通过）
-├── agents/                 #   智能体测试
-├── api/                    #   API 测试
-├── engine/                 #   引擎测试
-├── integration/            #   集成测试（端到端）
-├── llm/                    #   LLM 适配器测试
-├── primitives/             #   原语测试
-└── skills/                 #   Skill 加载测试
+├── social-media/           # 📱 社交媒体 Skill（v0.2.0）
+│   ├── SKILL.md            #   Skill 元数据
+│   ├── domain-profile.md   #   领域画像（通用社交媒体知识）
+│   ├── platforms/           #   7 个平台画像文件
+│   │   ├── xiaohongshu.md  #     🔴 小红书
+│   │   ├── douyin.md       #     🎵 抖音
+│   │   ├── weibo.md        #     🔥 微博
+│   │   ├── bilibili.md     #     📺 B 站
+│   │   ├── zhihu.md        #     💡 知乎
+│   │   ├── wechat.md       #     💬 微信公众号
+│   │   └── generic.md      #     🌐 通用平台
+│   ├── prompts/             #   智能体 Prompt 模板
+│   │   ├── omniscient.md   #     全视者 Prompt
+│   │   ├── tribunal.md     #     传播校准合议庭 Prompt
+│   │   ├── star.md         #     星智能体 Prompt
+│   │   └── sea.md          #     海智能体 Prompt
+│   └── rubrics/             #   评分维度定义
+│       └── propagation-calibration.md  # 传播校准 5 维度行为锚点
+│
+└── pmf-validation/          # 🎯 PMF 验证 Skill（v0.2.0）
+    ├── SKILL.md             #   Skill 元数据
+    ├── domain-profile.md    #   领域画像（PMF 方法论）
+    ├── channels/             #   8+1 渠道画像（按传播机制分类）
+    │   ├── algorithm-ecommerce.md   # 算法推荐电商
+    │   ├── search-ecommerce.md      # 搜索电商
+    │   ├── social-ecommerce.md      # 社交电商
+    │   ├── content-seeding.md       # 内容种草
+    │   ├── offline-experience.md    # 线下体验零售
+    │   ├── offline-distribution.md  # 线下流通零售
+    │   ├── enterprise-sales.md      # 企业级销售
+    │   ├── app-distribution.md      # 应用商店/数字分发
+    │   └── generic.md               # 🌐 通用渠道（fallback）
+    ├── verticals/            #   5 行业垂类画像
+    │   ├── fmcg.md           #     快消品
+    │   ├── fashion-retail.md #     时尚/鞋服
+    │   ├── consumer-electronics.md  # 3C/消费电子
+    │   ├── saas.md           #     SaaS/软件服务
+    │   └── mobile-app.md    #     移动互联网产品
+    ├── platforms/            #   3 平台画像
+    │   ├── xiaohongshu.md   #     🔴 小红书
+    │   ├── douyin.md        #     🎵 抖音
+    │   └── weibo.md         #     🔥 微博
+    ├── prompts/              #   智能体 Prompt 模板
+    │   ├── omniscient.md    #     全视者 Prompt
+    │   ├── tribunal.md      #     PMF 评审合议庭 Prompt
+    │   ├── star.md          #     星智能体 Prompt
+    │   └── sea.md           #     海智能体 Prompt
+    └── rubrics/              #   评分维度定义
+        ├── scorecard-dimensions.md  # PMF 评分维度（5 默认 + 6 扩展）
+        └── pmf-grade-rubric.md      # PMF 等级判定标准
 
 examples/                    # 📖 示例
-└── e2e_simulation_xiaohongshu.py  # 小红书完整模拟示例
+├── e2e_helpers.py                          # 端到端测试辅助函数
+├── e2e_simulation_xiaohongshu.py           # 小红书完整模拟示例
+├── e2e_simulation_cny_robot_xiaohongshu.py # 小红书 CNY 场景模拟
+└── e2e_pmf_fmcg_algorithm_ecommerce.py     # PMF 验证：快消品×抖音电商
+
+docs/                        # 📚 设计文档
+└── paper-reviews/          #   论文阅读笔记
 ```
 
 ---
 
 ## 📋 项目状态
 
-> **v0.1.0 — 核心架构已实现，持续迭代中** 🚧
+> **v0.2.0 — 核心架构 + 两个领域 Skill 已实现，持续迭代中** 🚧
 
 | 指标 | 数据 |
 |------|------|
-| 版本 | `0.1.0` |
-| 核心源文件 | 17 个模块 |
-| 代码行数 | ~5,300 行（不含测试和 `__init__`） |
-| 测试用例 | 148 个（全部通过 ✅，耗时 < 0.1s） |
-| 测试文件 | 13 个（覆盖全部层级） |
-| 支持平台 | 7 个（小红书 · 抖音 · 微博 · B站 · 知乎 · 微信公众号 · 通用） |
+| 版本 | `0.2.0` |
+| 核心源文件 | 23 个模块 |
+| 测试用例 | 227 个（全部通过 ✅） |
+| 测试文件 | 29 个（覆盖全部层级） |
+| 领域 Skill | 2 个（social-media v0.2.0 · pmf-validation v0.2.0） |
+| Skill 配置文件 | 39 个（画像 + Prompt + 评分维度） |
+| 社交媒体平台 | 7 个（小红书 · 抖音 · 微博 · B站 · 知乎 · 微信公众号 · 通用） |
+| PMF 渠道 | 9 个（8 传播机制渠道 + 1 通用 fallback） |
+| PMF 行业垂类 | 5 个（快消品 · 时尚/鞋服 · 3C · SaaS · 移动互联网） |
 | LLM 后端 | Anthropic · OpenAI（含兼容协议）· AWS Bedrock |
 | LLM 协议 | Chat Completions · Responses API · Anthropic Messages · Bedrock |
 | Python | ≥ 3.11 |
@@ -484,6 +697,42 @@ examples/                    # 📖 示例
 | 输出格式 | JSON | 轻量、可读、无外部数据库依赖 |
 | 测试框架 | pytest + pytest-asyncio | 标准异步测试方案 |
 | Agent 框架 | **不使用** | 极简设计，纯原生 Python 实现 |
+
+---
+
+## 📚 文档索引
+
+### 设计文档
+
+| 文档 | 说明 |
+|------|------|
+| [`2026-02-15-ripple-omniscient-architecture-design.md`](docs/plans/2026-02-15-ripple-omniscient-architecture-design.md) | 全视者中心制架构设计 |
+| [`2026-02-15-ripple-implementation-plan.md`](docs/plans/2026-02-15-ripple-implementation-plan.md) | 核心实施计划 |
+| [`2026-02-16-cas-accumulative-activation-design.md`](docs/plans/2026-02-16-cas-accumulative-activation-design.md) | CAS 累积激活机制设计 |
+| [`2026-02-16-platform-profile-injection-design.md`](docs/plans/2026-02-16-platform-profile-injection-design.md) | 平台画像注入设计 |
+| [`2026-02-16-prediction-optimization-design.md`](docs/plans/2026-02-16-prediction-optimization-design.md) | 预测优化设计 |
+| [`2026-02-18-pmf-validation-design.md`](docs/plans/2026-02-18-pmf-validation-design.md) | PMF 验证架构设计 |
+| [`2026-02-22-pmf-skill-optimization-design.md`](docs/plans/2026-02-22-pmf-skill-optimization-design.md) | PMF Skill 深度优化设计（渠道/垂类/反乐观偏误） |
+| [`2026-02-22-social-media-tribunal-design.md`](docs/plans/2026-02-22-social-media-tribunal-design.md) | 社交媒体合议庭设计 |
+
+### 论文阅读笔记
+
+| 文档 | 说明 |
+|------|------|
+| [`OASIS-open-agent-social-interaction-simulations.md`](docs/paper-reviews/OASIS-open-agent-social-interaction-simulations.md) | OASIS 论文阅读笔记 |
+| [`generative-agents-interactive-simulacra.md`](docs/paper-reviews/generative-agents-interactive-simulacra.md) | Generative Agents 论文阅读笔记 |
+
+### 平台画像（社交媒体）
+
+| 文档 | 说明 |
+|------|------|
+| [`xiaohongshu.md`](skills/social-media/platforms/xiaohongshu.md) | 🔴 小红书平台画像 |
+| [`douyin.md`](skills/social-media/platforms/douyin.md) | 🎵 抖音平台画像 |
+| [`weibo.md`](skills/social-media/platforms/weibo.md) | 🔥 微博平台画像 |
+| [`bilibili.md`](skills/social-media/platforms/bilibili.md) | 📺 B 站平台画像 |
+| [`zhihu.md`](skills/social-media/platforms/zhihu.md) | 💡 知乎平台画像 |
+| [`wechat.md`](skills/social-media/platforms/wechat.md) | 💬 微信公众号平台画像 |
+| [`generic.md`](skills/social-media/platforms/generic.md) | 🌐 通用平台画像 |
 
 ---
 
@@ -508,6 +757,7 @@ Ripple 是一个**独立的新项目**，借鉴了 OASIS "智能体与平台环�
 | **模拟粒度** | 一个用户 = 一个 Agent | 一个群体 = 一个 Agent |
 | **领域范围** | 社交媒体 | 任意人类社会行为 |
 | **预测输出** | 确定性 | 含置信度的概率性预测 |
+| **预测校准** | 无 | 合议庭多专家结构化辩论 |
 | **LLM 调用量** | O(N)，随用户数线性增长 | O(K)，仅与群体数相关 |
 | **涌现捕捉** | 逐人交互自然涌现 | CAS 理论驱动 + LLM 动态推断 |
 | **Agent 框架** | CAMEL-AI | 原生 Python（无框架依赖） |

@@ -1,4 +1,5 @@
 # tests/agents/test_star.py
+# 星 Agent 测试 / StarAgent tests
 import pytest
 import json
 from unittest.mock import AsyncMock
@@ -8,7 +9,7 @@ from ripple.agents.star import StarAgent
 class TestStarAgent:
     @pytest.mark.asyncio
     async def test_respond_amplify(self):
-        """星 Agent 收到涟漪后应能输出放大响应。"""
+        """星 Agent 收到涟漪后应能输出放大响应。 / StarAgent should output amplify response upon receiving ripple."""
         mock_llm = AsyncMock()
         mock_llm.return_value = json.dumps({
             "response_type": "amplify",
@@ -30,11 +31,11 @@ class TestStarAgent:
 
         assert response["response_type"] == "amplify"
         assert 0.0 <= response["outgoing_energy"] <= 1.0
-        assert response["response_content"]  # 非空
+        assert response["response_content"]  # 非空 / Non-empty
 
     @pytest.mark.asyncio
     async def test_respond_ignore(self):
-        """星 Agent 应能选择忽略涟漪。"""
+        """星 Agent 应能选择忽略涟漪。 / StarAgent should be able to ignore ripple."""
         mock_llm = AsyncMock()
         mock_llm.return_value = json.dumps({
             "response_type": "ignore",
@@ -59,7 +60,7 @@ class TestStarAgent:
 
     @pytest.mark.asyncio
     async def test_memory_accumulation(self):
-        """星 Agent 应记住之前收到的涟漪（RAG 记忆）。"""
+        """星 Agent 应记住之前收到的涟漪（RAG 记忆）。 / StarAgent should remember prior ripples (RAG memory)."""
         mock_llm = AsyncMock()
         mock_llm.return_value = json.dumps({
             "response_type": "comment",
@@ -72,12 +73,12 @@ class TestStarAgent:
             agent_id="star_1", description="test",
             llm_caller=mock_llm,
         )
-        # 第一次响应
+        # 第一次响应 / First response
         await star.respond(
             ripple_content="第一条涟漪",
             ripple_energy=0.5, ripple_source="sea_a",
         )
-        # 第二次响应——应能看到记忆
+        # 第二次响应——应能看到记忆 / Second response — should see memory
         await star.respond(
             ripple_content="第二条涟漪",
             ripple_energy=0.6, ripple_source="sea_b",
@@ -87,7 +88,7 @@ class TestStarAgent:
 
     @pytest.mark.asyncio
     async def test_fallback_on_llm_failure(self):
-        """LLM 失败时应降级为 ignore。"""
+        """LLM 失败时应降级为 ignore。 / Should fallback to ignore on LLM failure."""
         mock_llm = AsyncMock(side_effect=Exception("LLM down"))
 
         star = StarAgent(

@@ -131,7 +131,12 @@ class ModelRouter:
     - 超 80% 上限自动降级，超 100% 禁止调用
       / Auto-degrades at 80% budget; blocks at 100%
     - max_llm_calls <= 0 表示不限制 / <= 0 means unlimited
+    - 未配置角色可通过 _ROLE_FALLBACKS 回退到其他角色
+      / Unconfigured roles fall back via _ROLE_FALLBACKS
     """
+
+    # 角色回退映射：未配置的角色回退到指定角色的配置 / Role fallback mapping
+    _ROLE_FALLBACKS: Dict[str, str] = {"tribunal": "omniscient"}
 
     def __init__(
         self,
@@ -190,6 +195,28 @@ class ModelRouter:
         return self._config_loader
 
     # =========================================================================
+    # 角色配置解析（含回退） / Role Config Resolution (with fallback)
+    # =========================================================================
+
+    def _resolve_with_fallback(self, role: str):
+        """解析角色配置，未配置时尝试回退。 / Resolve role config, falling back if unconfigured.
+
+        Raises:
+            ConfigurationError: 角色和回退角色均未配置。 / Both role and fallback unconfigured.
+        """
+        try:
+            return self._config_loader.resolve(role)
+        except ConfigurationError:
+            fallback = self._ROLE_FALLBACKS.get(role)
+            if fallback:
+                logger.warning(
+                    "角色 '%s' 未配置，回退到 '%s' 配置",
+                    role, fallback,
+                )
+                return self._config_loader.resolve(fallback)
+            raise
+
+    # =========================================================================
     # 模型选择 / Model Selection
     # =========================================================================
 
@@ -212,13 +239,13 @@ class ModelRouter:
                 )
                 return degraded
 
-        # 从配置解析（缺失会抛出 ConfigurationError） / Resolve from config (raises on missing)
-        config = self._config_loader.resolve(role)
+        # 从配置解析（支持角色回退） / Resolve from config (with role fallback)
+        config = self._resolve_with_fallback(role)
         return config.model_name
 
     def get_endpoint_config(self, role: str):
         """获取角色的 ModelEndpointConfig 对象。 / Get ModelEndpointConfig for a role."""
-        return self._config_loader.resolve(role)
+        return self._resolve_with_fallback(role)
 
     # =========================================================================
     # 适配器管理 / Adapter Management
@@ -266,8 +293,8 @@ class ModelRouter:
         if cache_key in self._model_cache:
             return self._model_cache[cache_key]
 
-        # 获取角色的端点配置 / Get endpoint config for role
-        config = self._config_loader.resolve(role)
+        # 获取角色的端点配置（支持角色回退） / Get endpoint config for role (with fallback)
+        config = self._resolve_with_fallback(role)
 
         # 降级时替换模型名，保留连接配置 / Replace model name on degradation, keep connection config
         if degraded_model:

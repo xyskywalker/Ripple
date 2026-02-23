@@ -108,10 +108,14 @@ class SeaAgent:
                 )
             memory_context = SEA_MEMORY_HEADER + "\n".join(lines)
 
-        return SEA_SYSTEM_PROMPT.format(
+        base = SEA_SYSTEM_PROMPT.format(
             description=self.description,
             memory_context=memory_context,
         )
+        # v4: Prepend skill context (if injected via system_prompt_template)
+        if self._system_prompt_template:
+            return self._system_prompt_template + base
+        return base
 
     def _build_user_prompt(
         self, content: str, energy: float, source: str,
@@ -123,6 +127,15 @@ class SeaAgent:
         )
 
     def _parse_response(self, raw: str) -> Dict[str, Any]:
+        if raw is None:
+            raise ValueError("SeaAgent LLM response is None")
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", errors="replace")
+        if not isinstance(raw, str):
+            raise TypeError(
+                f"SeaAgent expected str response, got {type(raw).__name__}"
+            )
+
         text = raw.strip()
         if text.startswith("```"):
             lines = text.split("\n")

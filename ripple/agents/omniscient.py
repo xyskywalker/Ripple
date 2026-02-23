@@ -6,11 +6,13 @@ The only agent with full context, responsible for:
 2. 涟漪传播裁决（RIPPLE） / Ripple propagation verdict (RIPPLE)
 3. 涌现检测与相变判断（OBSERVE） / Emergence detection & phase transition (OBSERVE)
 4. 结果合成 / Result synthesis
+
+v4: Prompt stratification — instructions/schema → system_prompt, data → user_prompt.
 """
 
 import json
 import logging
-from typing import Any, Callable, Awaitable, Dict, List, Optional
+from typing import Any, Callable, Awaitable, Dict, List, Optional, Tuple
 
 from ripple.primitives.models import (
     OmniscientVerdict, AgentActivation, AgentSkip,
@@ -30,6 +32,21 @@ from ripple.prompts import (
     OMNISCIENT_OBSERVE,
     OMNISCIENT_SYNTHESIZE_RELATIVE,
     OMNISCIENT_SYNTHESIZE_ANCHORED,
+    # v4 split templates
+    OMNISCIENT_INIT_DYNAMICS_SYSTEM,
+    OMNISCIENT_INIT_DYNAMICS_USER,
+    OMNISCIENT_INIT_AGENTS_SYSTEM,
+    OMNISCIENT_INIT_AGENTS_USER,
+    OMNISCIENT_INIT_TOPOLOGY_SYSTEM,
+    OMNISCIENT_INIT_TOPOLOGY_USER,
+    OMNISCIENT_RIPPLE_VERDICT_SYSTEM,
+    OMNISCIENT_RIPPLE_VERDICT_USER,
+    OMNISCIENT_OBSERVE_SYSTEM,
+    OMNISCIENT_OBSERVE_USER,
+    OMNISCIENT_SYNTHESIZE_RELATIVE_SYSTEM,
+    OMNISCIENT_SYNTHESIZE_RELATIVE_USER,
+    OMNISCIENT_SYNTHESIZE_ANCHORED_SYSTEM,
+    OMNISCIENT_SYNTHESIZE_ANCHORED_USER,
 )
 
 logger = logging.getLogger(__name__)
@@ -57,16 +74,8 @@ INIT_REQUIRED_FIELDS = {
     "dynamic_parameters", "seed_ripple",
 }
 
-# OBSERVE 输出必须包含的字段 / Required fields in OBSERVE output
-OBSERVE_REQUIRED_FIELDS = {
-    "phase_vector", "phase_transition_detected",
-    "emergence_events", "topology_recommendations",
-}
-
-# synthesize_result 输出必须包含的字段 / Required fields in synthesize_result output
-SYNTH_REQUIRED_FIELDS = {
-    "prediction", "timeline", "bifurcation_points", "agent_insights",
-}
+# OBSERVE / SYNTHESIZE: 输出字段由 Skill prompt 定义，引擎不再硬编码检查。
+# / Output fields defined by Skill prompts, engine no longer hardcodes validation.
 
 
 class OmniscientAgent:
@@ -83,12 +92,28 @@ class OmniscientAgent:
         self._max_retries = max_retries
         self._init_result: Optional[Dict[str, Any]] = None
 
-    async def _call_llm(self, user_prompt: str, phase: str = "") -> str:
-        """调用 LLM，由引擎注入的 caller 处理实际路由。 / Call LLM; routing handled by injected caller."""
+    async def _call_llm(
+        self,
+        user_prompt: str,
+        phase: str = "",
+        phase_system_prompt: str = "",
+    ) -> str:
+        """调用 LLM，由引擎注入的 caller 处理实际路由。 / Call LLM; routing handled by injected caller.
+
+        v4: phase_system_prompt 包含当前阶段的指令/schema，与 self._system_prompt（base + skill）合并后
+        送入 system_prompt 可信区。运行时数据仅出现在 user_prompt 非可信区。
+        / phase_system_prompt contains phase instructions/schema, merged with self._system_prompt
+        into the trusted system_prompt zone. Runtime data only in user_prompt untrusted zone.
+        """
         if phase:
             logger.info(f"Omniscient 调用 LLM: {phase}")
+
+        # Merge base system_prompt (may include skill context) with phase instructions
+        parts = [p for p in (self._system_prompt, phase_system_prompt) if p]
+        combined_system = "\n\n".join(parts)
+
         return await self._llm_caller(
-            system_prompt=self._system_prompt,
+            system_prompt=combined_system,
             user_prompt=user_prompt,
         )
 
@@ -177,17 +202,25 @@ class OmniscientAgent:
 
     async def _init_sub_call(
         self,
-        user_prompt: str,
+        prompts: Tuple[str, str],
         phase: str,
         required_fields: set,
         error_label: str,
     ) -> Dict[str, Any]:
-        """执行单次 INIT sub-call，带重试。 / Execute single INIT sub-call with retries."""
+        """执行单次 INIT sub-call，带重试。 / Execute single INIT sub-call with retries.
+
+        v4: prompts is (phase_system_prompt, user_prompt) tuple.
+        """
+        phase_system_prompt, user_prompt = prompts
         last_error = None
-        prompt = user_prompt
+        current_user = user_prompt
         for attempt in range(1 + self._max_retries):
             try:
-                raw = await self._call_llm(prompt, phase=phase)
+                raw = await self._call_llm(
+                    current_user,
+                    phase=phase,
+                    phase_system_prompt=phase_system_prompt,
+                )
                 result = self._parse_json(raw)
                 missing = required_fields - set(result.keys())
                 if missing:
@@ -199,7 +232,7 @@ class OmniscientAgent:
                     f"全视者 {error_label} 第 {attempt + 1} 次尝试失败: {e}"
                 )
                 if attempt < self._max_retries:
-                    prompt = (
+                    current_user = (
                         RETRY_JSON_PREFIX.format(error=e)
                         + user_prompt
                     )
@@ -213,34 +246,43 @@ class OmniscientAgent:
         self,
         skill_profile: str,
         simulation_input: Dict[str, Any],
-    ) -> str:
-        """Sub-call 1: 场景分析 + 时间参数。 / Scene analysis + time params."""
+    ) -> Tuple[str, str]:
+        """Sub-call 1: 场景分析 + 时间参数。 / Scene analysis + time params.
+
+        Returns: (phase_system_prompt, user_prompt)
+        """
         input_json = json.dumps(simulation_input, ensure_ascii=False, indent=2)
         horizon = simulation_input.get("simulation_horizon", "")
         horizon_line = (
             OMNISCIENT_INIT_DYNAMICS_HORIZON_LINE.format(horizon=horizon)
             if horizon else ""
         )
-        return OMNISCIENT_INIT_DYNAMICS.format(
+        system = OMNISCIENT_INIT_DYNAMICS_SYSTEM.format(horizon_line=horizon_line)
+        user = OMNISCIENT_INIT_DYNAMICS_USER.format(
             skill_profile=skill_profile,
             input_json=input_json,
-            horizon_line=horizon_line,
         )
+        return system, user
 
     def _build_init_agents_prompt(
         self,
         skill_profile: str,
         simulation_input: Dict[str, Any],
         dynamic_parameters: Dict[str, Any],
-    ) -> str:
-        """Sub-call 2: Agent 配置。 / Agent configs."""
+    ) -> Tuple[str, str]:
+        """Sub-call 2: Agent 配置。 / Agent configs.
+
+        Returns: (phase_system_prompt, user_prompt)
+        """
         input_json = json.dumps(simulation_input, ensure_ascii=False, indent=2)
         dp_json = json.dumps(dynamic_parameters, ensure_ascii=False, indent=2)
-        return OMNISCIENT_INIT_AGENTS.format(
+        system = OMNISCIENT_INIT_AGENTS_SYSTEM
+        user = OMNISCIENT_INIT_AGENTS_USER.format(
             skill_profile=skill_profile,
             input_json=input_json,
             dp_json=dp_json,
         )
+        return system, user
 
     def _build_init_topology_prompt(
         self,
@@ -248,8 +290,11 @@ class OmniscientAgent:
         simulation_input: Dict[str, Any],
         dynamic_parameters: Dict[str, Any],
         agents_result: Dict[str, Any],
-    ) -> str:
-        """Sub-call 3: 拓扑 + 种子。 / Topology + seed."""
+    ) -> Tuple[str, str]:
+        """Sub-call 3: 拓扑 + 种子。 / Topology + seed.
+
+        Returns: (phase_system_prompt, user_prompt)
+        """
         input_json = json.dumps(simulation_input, ensure_ascii=False, indent=2)
         dp_json = json.dumps(dynamic_parameters, ensure_ascii=False, indent=2)
         agents_json = json.dumps(
@@ -259,12 +304,14 @@ class OmniscientAgent:
             },
             ensure_ascii=False, indent=2,
         )
-        return OMNISCIENT_INIT_TOPOLOGY.format(
+        system = OMNISCIENT_INIT_TOPOLOGY_SYSTEM
+        user = OMNISCIENT_INIT_TOPOLOGY_USER.format(
             skill_profile=skill_profile,
             input_json=input_json,
             dp_json=dp_json,
             agents_json=agents_json,
         )
+        return system, user
 
     def _validate_init_result(self, result: Dict[str, Any]) -> None:
         """校验 INIT 输出的必要字段。 / Validate required fields in INIT output."""
@@ -300,7 +347,7 @@ class OmniscientAgent:
         Returns:
             OmniscientVerdict 含激活列表和 continue 决定 / OmniscientVerdict with activation list and continue decision
         """
-        user_prompt = self._build_ripple_prompt(
+        phase_system, user_prompt = self._build_ripple_prompt(
             field_snapshot, wave_number, propagation_history,
             wave_time_window=wave_time_window,
             simulation_horizon=simulation_horizon,
@@ -310,7 +357,9 @@ class OmniscientAgent:
         for attempt in range(1 + self._max_retries):
             try:
                 raw = await self._call_llm(
-                    user_prompt, phase=f"RIPPLE verdict (wave {wave_number})",
+                    user_prompt,
+                    phase=f"RIPPLE verdict (wave {wave_number})",
+                    phase_system_prompt=phase_system,
                 )
                 data = self._parse_json(raw)
                 return self._parse_verdict(data)
@@ -345,7 +394,11 @@ class OmniscientAgent:
         propagation_history: str,
         wave_time_window: str = "",
         simulation_horizon: str = "",
-    ) -> str:
+    ) -> Tuple[str, str]:
+        """Build RIPPLE verdict prompts.
+
+        Returns: (phase_system_prompt, user_prompt)
+        """
         snapshot_json = json.dumps(
             field_snapshot, ensure_ascii=False, indent=2, default=str,
         )
@@ -404,14 +457,19 @@ class OmniscientAgent:
         # Wave 0: 注入首轮 Sea 优先提示 / Wave 0: inject first-wave hint for Sea priority
         wave0_hint = OMNISCIENT_RIPPLE_WAVE0_HINT if wave_number == 0 else ""
 
-        return OMNISCIENT_RIPPLE_VERDICT.format(
+        # v4: Split — instructions → system, data → user
+        system = OMNISCIENT_RIPPLE_VERDICT_SYSTEM.format(
+            cas_principles=OMNISCIENT_RIPPLE_CAS_PRINCIPLES + wave0_hint,
+            wave_number=wave_number,
+        )
+        user = OMNISCIENT_RIPPLE_VERDICT_USER.format(
             wave_number=wave_number,
             time_progress=time_progress,
-            cas_principles=OMNISCIENT_RIPPLE_CAS_PRINCIPLES + wave0_hint,
             snapshot_json=snapshot_json,
             propagation_history=propagation_history,
             agent_list=agent_list,
         )
+        return system, user
 
     def _parse_verdict(self, data: Dict[str, Any]) -> OmniscientVerdict:
         """将 LLM JSON 输出解析为 OmniscientVerdict。 / Parse LLM JSON output into OmniscientVerdict."""
@@ -460,12 +518,16 @@ class OmniscientAgent:
             观测结果 / Observation with phase_vector, phase_transition_detected,
             emergence_events, topology_recommendations
         """
-        user_prompt = self._build_observe_prompt(field_snapshot, full_history)
+        phase_system, user_prompt = self._build_observe_prompt(field_snapshot, full_history)
 
         last_error = None
         for attempt in range(1 + self._max_retries):
             try:
-                raw = await self._call_llm(user_prompt, phase="OBSERVE")
+                raw = await self._call_llm(
+                    user_prompt,
+                    phase="OBSERVE",
+                    phase_system_prompt=phase_system,
+                )
                 result = self._parse_json(raw)
                 self._validate_observe_result(result)
                 return result
@@ -496,19 +558,25 @@ class OmniscientAgent:
         self,
         field_snapshot: Dict[str, Any],
         full_history: str,
-    ) -> str:
+    ) -> Tuple[str, str]:
+        """Build OBSERVE prompts.
+
+        Returns: (phase_system_prompt, user_prompt)
+        """
         snapshot_json = json.dumps(
             field_snapshot, ensure_ascii=False, indent=2, default=str,
         )
-        return OMNISCIENT_OBSERVE.format(
+        system = OMNISCIENT_OBSERVE_SYSTEM
+        user = OMNISCIENT_OBSERVE_USER.format(
             snapshot_json=snapshot_json,
             full_history=full_history,
         )
+        return system, user
 
     def _validate_observe_result(self, result: Dict[str, Any]) -> None:
-        missing = OBSERVE_REQUIRED_FIELDS - set(result.keys())
-        if missing:
-            raise ValueError(f"OBSERVE 输出缺少必要字段: {missing}")
+        """Validate OBSERVE output (JSON validity only; fields defined by Skill prompt)."""
+        if not result:
+            logger.warning("OBSERVE 输出为空 dict，Skill prompt 可能未指定输出格式")
 
     # =========================================================================
     # 结果合成 / Result Synthesis
@@ -531,14 +599,18 @@ class OmniscientAgent:
             预测结果 / Prediction with prediction, timeline, bifurcation_points,
             agent_insights
         """
-        user_prompt = self._build_synth_prompt(
+        phase_system, user_prompt = self._build_synth_prompt(
             field_snapshot, observation, simulation_input,
         )
 
         last_error = None
         for attempt in range(1 + self._max_retries):
             try:
-                raw = await self._call_llm(user_prompt, phase="SYNTHESIZE")
+                raw = await self._call_llm(
+                    user_prompt,
+                    phase="SYNTHESIZE",
+                    phase_system_prompt=phase_system,
+                )
                 result = self._parse_json(raw)
                 self._validate_synth_result(result)
                 return result
@@ -566,7 +638,11 @@ class OmniscientAgent:
         field_snapshot: Dict[str, Any],
         observation: Dict[str, Any],
         simulation_input: Dict[str, Any],
-    ) -> str:
+    ) -> Tuple[str, str]:
+        """Build SYNTHESIZE prompts.
+
+        Returns: (phase_system_prompt, user_prompt)
+        """
         snapshot_json = json.dumps(
             field_snapshot, ensure_ascii=False, indent=2, default=str,
         )
@@ -578,18 +654,22 @@ class OmniscientAgent:
         )
 
         has_historical = bool(simulation_input.get("historical"))
-        template = (
-            OMNISCIENT_SYNTHESIZE_ANCHORED if has_historical
-            else OMNISCIENT_SYNTHESIZE_RELATIVE
+        system = (
+            OMNISCIENT_SYNTHESIZE_ANCHORED_SYSTEM if has_historical
+            else OMNISCIENT_SYNTHESIZE_RELATIVE_SYSTEM
         )
-
-        return template.format(
+        user_template = (
+            OMNISCIENT_SYNTHESIZE_ANCHORED_USER if has_historical
+            else OMNISCIENT_SYNTHESIZE_RELATIVE_USER
+        )
+        user = user_template.format(
             snapshot_json=snapshot_json,
             obs_json=obs_json,
             input_json=input_json,
         )
+        return system, user
 
     def _validate_synth_result(self, result: Dict[str, Any]) -> None:
-        missing = SYNTH_REQUIRED_FIELDS - set(result.keys())
-        if missing:
-            raise ValueError(f"结果合成输出缺少必要字段: {missing}")
+        """Validate SYNTHESIZE output (JSON validity only; fields defined by Skill prompt)."""
+        if not result:
+            logger.warning("SYNTHESIZE 输出为空 dict，Skill prompt 可能未指定输出格式")

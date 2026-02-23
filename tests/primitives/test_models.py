@@ -1,7 +1,7 @@
 # tests/primitives/test_models.py
-# 原语模型测试
+# 原语模型测试 / Primitive model tests
 
-"""原语模型测试"""
+"""原语模型测试。 / Primitive model tests."""
 import pytest
 from ripple.primitives.models import (
     Ripple,
@@ -19,10 +19,10 @@ from ripple.primitives.models import (
 
 
 class TestRipple:
-    """Ripple 12 字段测试"""
+    """Ripple 12 字段测试。 / Ripple 12-field tests."""
 
     def test_create_seed_ripple(self):
-        """种子 Ripple: root_id = self.id"""
+        """种子 Ripple: root_id = self.id。 / Seed Ripple: root_id = self.id."""
         r = Ripple(
             id="r1",
             content="test",
@@ -40,7 +40,7 @@ class TestRipple:
         assert r.parent_id is None
 
     def test_create_child_ripple(self):
-        """子 Ripple: root_id = parent.root_id"""
+        """子 Ripple: root_id = parent.root_id。 / Child Ripple: root_id = parent.root_id."""
         child = Ripple(
             id="r2",
             content="reply",
@@ -59,7 +59,7 @@ class TestRipple:
         assert child.parent_id == "r1"
 
     def test_root_id_not_empty(self):
-        """root_id 默认值为空字符串（创建时必须赋值）"""
+        """root_id 默认值为空字符串（创建时必须赋值）。 / root_id defaults to empty string."""
         r = Ripple(
             id="r3",
             content="",
@@ -72,11 +72,11 @@ class TestRipple:
             tick_born=0,
             mutations=[],
         )
-        assert r.root_id == ""  # 默认值，实际使用时必须赋值
+        assert r.root_id == ""  # 默认值，实际使用时必须赋值 / Default; must be set in practice
 
 
 class TestEvent:
-    """Event 11 字段测试"""
+    """Event 11 字段测试。 / Event 11-field tests."""
 
     def test_event_creation(self):
         e = Event(

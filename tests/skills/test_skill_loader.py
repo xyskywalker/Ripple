@@ -1,34 +1,34 @@
 # tests/skills/test_skill_loader.py
-# Skill 加载测试
+# Skill 加载测试 / Skill loading tests
 
-"""Skill 加载测试。"""
+"""Skill 加载测试。 / Skill loading tests."""
 import pytest
 from pathlib import Path
 from ripple.skills.manager import SkillManager, LoadedSkill
 from ripple.skills.validator import SkillValidationError
 
-# Skill 目录路径
+# Skill 目录路径 / Skill directory path
 SKILL_DIR = Path(__file__).parent.parent.parent / "skills" / "social-media"
 
 
 class TestSkillLoading:
     def test_default_search_paths_include_project_skills(self):
-        """默认搜索路径应包含当前项目的 skills 目录。"""
+        """默认搜索路径应包含当前项目的 skills 目录。 / Default search paths should include project skills dir."""
         manager = SkillManager()
         paths = manager._build_default_paths()
         assert Path.cwd() / "skills" in paths
 
     def test_load_social_media_skill(self):
-        """加载 social-media Skill。"""
+        """加载 social-media Skill。 / Load social-media skill."""
         if not SKILL_DIR.exists():
             pytest.skip("Skill 目录不存在")
         manager = SkillManager()
         skill = manager.load("social-media", skill_path=SKILL_DIR)
         assert skill.name == "social-media"
-        assert skill.version == "0.1.0"
+        assert skill.version == "0.2.0"
 
     def test_prompts_loaded(self):
-        """Prompt 模板加载（omniscient, star, sea）。"""
+        """Prompt 模板加载（omniscient, star, sea）。 / Load prompt templates (omniscient, star, sea)."""
         if not SKILL_DIR.exists():
             pytest.skip("Skill 目录不存在")
         manager = SkillManager()
@@ -40,7 +40,7 @@ class TestSkillLoading:
             assert len(content) > 0, f"Prompt {role} 为空"
 
     def test_domain_profile_loaded(self):
-        """领域画像加载。"""
+        """领域画像加载。 / Load domain profile."""
         if not SKILL_DIR.exists():
             pytest.skip("Skill 目录不存在")
         manager = SkillManager()
@@ -48,7 +48,7 @@ class TestSkillLoading:
         assert "社交媒体" in skill.domain_profile
 
     def test_prompt_hashes_generated(self):
-        """Prompt 哈希生成。"""
+        """Prompt 哈希生成。 / Generate prompt hashes."""
         if not SKILL_DIR.exists():
             pytest.skip("Skill 目录不存在")
         manager = SkillManager()
@@ -59,14 +59,14 @@ class TestSkillLoading:
             assert len(skill.prompt_hashes[role]) == 64  # SHA256 hex
 
     def test_skill_not_found(self):
-        """未找到 Skill 应抛出 SkillValidationError。"""
+        """未找到 Skill 应抛出 SkillValidationError。 / Should raise SkillValidationError when skill not found."""
         manager = SkillManager(search_paths=[Path("/nonexistent")])
         with pytest.raises(SkillValidationError) as exc_info:
             manager.load("nonexistent-skill")
         assert exc_info.value.code == "SKILL_NOT_FOUND"
 
     def test_invalid_frontmatter(self, tmp_path):
-        """无效 frontmatter 应抛出 SkillValidationError。"""
+        """无效 frontmatter 应抛出 SkillValidationError。 / Invalid frontmatter should raise SkillValidationError."""
         skill_dir = tmp_path / "skills" / "bad-skill"
         skill_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text("no frontmatter here")
@@ -77,7 +77,7 @@ class TestSkillLoading:
         assert exc_info.value.code == "SKILL_SCHEMA_INVALID"
 
     def test_missing_name_field(self, tmp_path):
-        """缺少 name 字段应抛出 SkillValidationError。"""
+        """缺少 name 字段应抛出 SkillValidationError。 / Missing name field should raise SkillValidationError."""
         skill_dir = tmp_path / "skills" / "no-name"
         skill_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text(
@@ -92,7 +92,7 @@ class TestSkillLoading:
 
 class TestSkillManager:
     def test_load_skill_without_cas_parameters(self, tmp_path):
-        """Skill 不包含 cas_parameters 应能正常加载。"""
+        """Skill 不包含 cas_parameters 应能正常加载。 / Skill without cas_parameters should load normally."""
         skill_dir = tmp_path / "skills" / "test-skill"
         skill_dir.mkdir(parents=True)
 
@@ -124,7 +124,7 @@ class TestSkillManager:
         assert skill.domain_profile == "领域画像内容"
 
     def test_load_skill_with_minimal_fields(self, tmp_path):
-        """最小字段的 Skill 应能正常加载。"""
+        """最小字段的 Skill 应能正常加载。 / Skill with minimal fields should load normally."""
         skill_dir = tmp_path / "skills" / "minimal-skill"
         skill_dir.mkdir(parents=True)
 
@@ -146,12 +146,12 @@ class TestSkillManager:
         skill = manager.load("minimal-skill")
 
         assert skill.name == "minimal-skill"
-        assert skill.version == "0.1.0"  # default
+        assert skill.version == "0.2.0"  # default
         assert "star" in skill.prompts
         assert "sea" in skill.prompts
 
     def test_prompts_loaded_from_top_level(self, tmp_path):
-        """Skill 的 prompts 从顶层字段加载，而非 domain_protocol。"""
+        """Skill 的 prompts 从顶层字段加载，而非 domain_protocol。 / Skill prompts load from top-level, not domain_protocol."""
         skill_dir = tmp_path / "skills" / "test-skill"
         skill_dir.mkdir(parents=True)
 
@@ -183,7 +183,7 @@ class TestSkillManager:
 
 class TestPlatformProfileLoading:
     def test_load_skill_with_platforms_dir(self, tmp_path):
-        """Skill with platforms/ directory should auto-load platform profiles."""
+        """含 platforms/ 目录的 Skill 应自动加载平台画像。 / Skill with platforms/ dir should auto-load platform profiles."""
         skill_dir = tmp_path / "skills" / "test-skill"
         skill_dir.mkdir(parents=True)
 
@@ -213,7 +213,7 @@ class TestPlatformProfileLoading:
         assert skill.platform_profiles["weibo"] == "微博画像内容"
 
     def test_load_skill_without_platforms_dir(self, tmp_path):
-        """Skill without platforms/ directory should have empty platform_profiles."""
+        """无 platforms/ 目录的 Skill 应有空的 platform_profiles。 / Skill without platforms/ dir should have empty platform_profiles."""
         skill_dir = tmp_path / "skills" / "no-platforms"
         skill_dir.mkdir(parents=True)
 
@@ -234,7 +234,7 @@ class TestPlatformProfileLoading:
         assert skill.platform_profiles == {}
 
     def test_platform_profiles_ignores_non_md_files(self, tmp_path):
-        """platform_profiles should only load .md files."""
+        """platform_profiles 应仅加载 .md 文件。 / platform_profiles should only load .md files."""
         skill_dir = tmp_path / "skills" / "filter-test"
         skill_dir.mkdir(parents=True)
 
@@ -263,7 +263,7 @@ class TestPlatformProfileLoading:
 
 class TestSkillPromptContent:
     def test_social_media_omniscient_prompt_contains_cautious_guidance(self):
-        """Social media omniscient prompt should contain cautious prediction guidance."""
+        """社交媒体 omniscient prompt 应包含审慎预测指导。 / Social media omniscient prompt should contain cautious prediction guidance."""
         from ripple.skills.manager import SkillManager
         mgr = SkillManager()
         skill = mgr.load("social-media")
@@ -271,7 +271,7 @@ class TestSkillPromptContent:
         assert "审慎" in omniscient_prompt or "90%" in omniscient_prompt
 
     def test_social_media_sea_prompt_contains_passive_consumer_anchor(self):
-        """Social media sea prompt should mention passive consumption behavior."""
+        """社交媒体 sea prompt 应提及被动消费行为。 / Social media sea prompt should mention passive consumption."""
         from ripple.skills.manager import SkillManager
         mgr = SkillManager()
         skill = mgr.load("social-media")
@@ -279,9 +279,68 @@ class TestSkillPromptContent:
         assert "被动" in sea_prompt or "浏览" in sea_prompt or "划走" in sea_prompt
 
     def test_social_media_domain_profile_contains_base_rate(self):
-        """Domain profile should mention base rate reality of content performance."""
+        """领域画像应提及内容表现的基准概率。 / Domain profile should mention base rate reality of content performance."""
         from ripple.skills.manager import SkillManager
         mgr = SkillManager()
         skill = mgr.load("social-media")
         profile = skill.domain_profile
         assert "90%" in profile or "基准" in profile or "绝大多数" in profile
+
+    def test_social_media_tribunal_prompt_loaded(self):
+        """social-media skill should load tribunal prompt."""
+        from ripple.skills.manager import SkillManager
+        mgr = SkillManager()
+        skill = mgr.load("social-media")
+        assert "tribunal" in skill.prompts
+        tribunal_prompt = skill.prompts["tribunal"]
+        assert "传播" in tribunal_prompt or "realism" in tribunal_prompt
+
+    def test_social_media_rubrics_loaded(self):
+        """social-media skill should load rubrics directory."""
+        from ripple.skills.manager import SkillManager
+        mgr = SkillManager()
+        skill = mgr.load("social-media")
+        rubrics = getattr(skill, "rubrics", {}) or {}
+        assert "propagation-calibration" in rubrics
+
+    def test_social_media_omniscient_contains_deliberate_guidance(self):
+        """omniscient prompt should contain DELIBERATE phase guidance."""
+        from ripple.skills.manager import SkillManager
+        mgr = SkillManager()
+        skill = mgr.load("social-media")
+        prompt = skill.prompts.get("omniscient", "")
+        assert "DELIBERATE" in prompt or "合议" in prompt
+
+    def test_social_media_omniscient_contains_anti_optimism_rules(self):
+        """omniscient prompt should contain anti-optimism rules."""
+        from ripple.skills.manager import SkillManager
+        mgr = SkillManager()
+        skill = mgr.load("social-media")
+        prompt = skill.prompts.get("omniscient", "")
+        assert "冷启动" in prompt or "新号" in prompt
+
+    def test_social_media_star_prompt_contains_ignore_default(self):
+        """star prompt should mention that default reaction is ignore."""
+        from ripple.skills.manager import SkillManager
+        mgr = SkillManager()
+        skill = mgr.load("social-media")
+        prompt = skill.prompts.get("star", "")
+        assert "忽略" in prompt or "ignore" in prompt.lower()
+        # Should also reference trust cost for unknown publishers
+        assert "信任" in prompt or "声誉" in prompt
+
+    def test_social_media_sea_prompt_contains_quantified_silence(self):
+        """sea prompt should contain quantified silent majority anchors."""
+        from ripple.skills.manager import SkillManager
+        mgr = SkillManager()
+        skill = mgr.load("social-media")
+        prompt = skill.prompts.get("sea", "")
+        assert "85" in prompt or "95" in prompt or "90" in prompt
+
+    def test_social_media_domain_profile_contains_cold_start_reality(self):
+        """domain profile should mention cold start reality for new accounts."""
+        from ripple.skills.manager import SkillManager
+        mgr = SkillManager()
+        skill = mgr.load("social-media")
+        profile = skill.domain_profile
+        assert "冷启动" in profile or "新账号" in profile

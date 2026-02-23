@@ -1,11 +1,11 @@
 # test_responses_adapter.py
 # =============================================================================
-# ResponsesAPIAdapter 单元测试
-# - URL 补全逻辑
-# - Azure 检测
-# - 请求构建
-# - 响应解析
-# - from_endpoint_config 工厂方法
+# ResponsesAPIAdapter 单元测试 / ResponsesAPIAdapter unit tests
+# - URL 补全逻辑 / URL completion logic
+# - Azure 检测 / Azure detection
+# - 请求构建 / Request building
+# - 响应解析 / Response parsing
+# - from_endpoint_config 工厂方法 / Factory method
 # =============================================================================
 
 import pytest
@@ -14,7 +14,7 @@ from ripple.llm.responses_adapter import ResponsesAPIAdapter
 
 
 class TestResolveEndpoint:
-    """URL 补全逻辑测试。"""
+    """URL 补全逻辑测试。 / URL completion logic tests."""
 
     def test_appends_responses_to_base_url(self):
         result = ResponsesAPIAdapter._resolve_endpoint(
@@ -49,7 +49,7 @@ class TestResolveEndpoint:
 
 
 class TestDetectAzure:
-    """Azure 域名检测测试。"""
+    """Azure 域名检测测试。 / Azure domain detection tests."""
 
     def test_detects_cognitiveservices(self):
         assert ResponsesAPIAdapter._detect_azure(
@@ -63,7 +63,7 @@ class TestDetectAzure:
 
 
 class TestBuildRequest:
-    """请求构建测试。"""
+    """请求构建测试。 / Request building tests."""
 
     def test_uses_instructions_and_input(self):
         adapter = ResponsesAPIAdapter(
@@ -100,7 +100,7 @@ class TestBuildRequest:
 
 
 class TestExtractText:
-    """响应解析测试。"""
+    """响应解析测试。 / Response parsing tests."""
 
     def test_extracts_from_output_text(self):
         data = {"output_text": "Hello!"}
@@ -131,7 +131,7 @@ class TestExtractText:
 
 
 class TestFromEndpointConfig:
-    """工厂方法测试。"""
+    """工厂方法测试。 / Factory method tests."""
 
     def test_raises_without_url(self):
         class FakeConfig:

@@ -12,7 +12,7 @@
 # SKILL.md 格式 / SKILL.md format:
 #   ---
 #   name: social-media
-#   version: "0.1.0"
+#   version: "0.2.0"
 #   description: ...
 #   prompts:
 #     omniscient: prompts/omniscient.md
@@ -66,6 +66,15 @@ class LoadedSkill:
 
     # 平台画像（约定扫描 {skill_dir}/platforms/*.md） / Platform profiles (convention: scan {skill_dir}/platforms/*.md)
     platform_profiles: Dict[str, str] = field(default_factory=dict)
+
+    # 评分 rubric（PMF 等领域使用） / Scoring rubrics (used by PMF validation etc.)
+    rubrics: Dict[str, str] = field(default_factory=dict)
+
+    # 渠道画像（约定扫描 {skill_dir}/channels/*.md） / Channel profiles (convention: scan {skill_dir}/channels/*.md)
+    channel_profiles: Dict[str, str] = field(default_factory=dict)
+
+    # 垂直领域画像（约定扫描 {skill_dir}/verticals/*.md） / Vertical profiles (convention: scan {skill_dir}/verticals/*.md)
+    vertical_profiles: Dict[str, str] = field(default_factory=dict)
 
     # 原始 frontmatter 元数据 / Raw frontmatter metadata
     meta: Dict[str, Any] = field(default_factory=dict)
@@ -273,6 +282,39 @@ class SkillManager:
                 platform_profiles[platform_name] = pf.read_text(encoding="utf-8")
                 logger.info("加载平台画像: %s", platform_name)
 
+        # 加载 rubrics（约定优于配置） / Load rubrics (convention over configuration)
+        rubrics: Dict[str, str] = {}
+        rubrics_dir = skill_dir / "rubrics"
+        if rubrics_dir.is_dir():
+            for rf in sorted(rubrics_dir.glob("*.md")):
+                if rf.name.startswith("."):
+                    continue
+                rubric_name = rf.stem
+                rubrics[rubric_name] = rf.read_text(encoding="utf-8")
+                logger.info("加载评分 rubric: %s", rubric_name)
+
+        # 加载 channel profiles（约定优于配置） / Load channel profiles (convention over configuration)
+        channel_profiles: Dict[str, str] = {}
+        channels_dir = skill_dir / "channels"
+        if channels_dir.is_dir():
+            for cf in sorted(channels_dir.glob("*.md")):
+                if cf.name.startswith("."):
+                    continue
+                channel_name = cf.stem
+                channel_profiles[channel_name] = cf.read_text(encoding="utf-8")
+                logger.info("加载渠道画像: %s", channel_name)
+
+        # 加载垂直领域画像（约定优于配置） / Load vertical profiles (convention over configuration)
+        vertical_profiles: Dict[str, str] = {}
+        verticals_dir = skill_dir / "verticals"
+        if verticals_dir.is_dir():
+            for vf in sorted(verticals_dir.glob("*.md")):
+                if vf.name.startswith("."):
+                    continue
+                vertical_name = vf.stem
+                vertical_profiles[vertical_name] = vf.read_text(encoding="utf-8")
+                logger.info("加载垂直领域画像: %s", vertical_name)
+
         # 生成 prompt hashes / Generate prompt hashes
         prompt_hashes: Dict[str, str] = {}
         for role, content in prompts.items():
@@ -280,13 +322,16 @@ class SkillManager:
 
         loaded = LoadedSkill(
             name=name,
-            version=frontmatter.get("version", "0.1.0"),
+            version=frontmatter.get("version", "0.2.0"),
             description=frontmatter.get("description", ""),
             path=skill_dir,
             prompts=prompts,
             prompt_hashes=prompt_hashes,
             domain_profile=domain_profile,
             platform_profiles=platform_profiles,
+            rubrics=rubrics,
+            channel_profiles=channel_profiles,
+            vertical_profiles=vertical_profiles,
             meta=frontmatter.get("meta", {}),
         )
 

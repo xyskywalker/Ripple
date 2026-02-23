@@ -107,10 +107,14 @@ class StarAgent:
                 )
             memory_context = STAR_MEMORY_HEADER + "\n".join(memory_lines)
 
-        return STAR_SYSTEM_PROMPT.format(
+        base = STAR_SYSTEM_PROMPT.format(
             description=self.description,
             memory_context=memory_context,
         )
+        # v4: Prepend skill context (if injected via system_prompt_template)
+        if self._system_prompt_template:
+            return self._system_prompt_template + base
+        return base
 
     def _build_user_prompt(
         self, content: str, energy: float, source: str,

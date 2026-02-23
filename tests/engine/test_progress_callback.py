@@ -1,5 +1,5 @@
 # tests/engine/test_progress_callback.py
-"""Tests for SimulationEvent progress callback mechanism."""
+"""SimulationEvent 进度回调机制测试。 / Tests for SimulationEvent progress callback mechanism."""
 
 import json
 import pytest
@@ -10,11 +10,11 @@ from ripple.primitives.events import SimulationEvent
 
 
 # ---------------------------------------------------------------------------
-# Shared mock helpers
+# 共享的 mock 辅助函数 / Shared mock helpers
 # ---------------------------------------------------------------------------
 
 def _make_init_responses(**overrides):
-    """Return 3 INIT sub-call responses (dynamics, agents, topology)."""
+    """返回 3 个 INIT sub-call 响应。 / Return 3 INIT sub-call responses (dynamics, agents, topology)."""
     dp = overrides.pop("dynamic_parameters", {
         "wave_time_window": "2h",
     })
@@ -76,15 +76,15 @@ _SEA_RESP = json.dumps({
 
 
 # ---------------------------------------------------------------------------
-# Tests
+# 测试 / Tests
 # ---------------------------------------------------------------------------
 
 class TestProgressCallbackBasic:
-    """基础回调机制测试。"""
+    """基础回调机制测试。 / Basic callback mechanism tests."""
 
     @pytest.mark.asyncio
     async def test_no_callback_works(self):
-        """不传 on_progress 时模拟正常完成（向后兼容）。"""
+        """不传 on_progress 时模拟正常完成（向后兼容）。 / Simulation completes without on_progress (backward compat)."""
         omniscient = AsyncMock(side_effect=[
             *_make_init_responses(),
             _make_wave_response(continue_propagation=False),
@@ -100,7 +100,7 @@ class TestProgressCallbackBasic:
 
     @pytest.mark.asyncio
     async def test_async_callback_receives_events(self):
-        """异步回调收到所有事件。"""
+        """异步回调收到所有事件。 / Async callback receives all events."""
         events = []
 
         async def handler(event: SimulationEvent):
@@ -124,7 +124,7 @@ class TestProgressCallbackBasic:
 
     @pytest.mark.asyncio
     async def test_sync_callback_receives_events(self):
-        """同步回调也能正常工作。"""
+        """同步回调也能正常工作。 / Sync callback also works correctly."""
         events = []
 
         def handler(event: SimulationEvent):
@@ -148,11 +148,11 @@ class TestProgressCallbackBasic:
 
 
 class TestProgressEventPhases:
-    """验证事件覆盖所有 5 个阶段。"""
+    """验证事件覆盖所有 5 个阶段。 / Verify events cover all 5 phases."""
 
     @pytest.mark.asyncio
     async def test_all_phases_have_start_and_end(self):
-        """每个阶段都有 phase_start 和 phase_end。"""
+        """每个阶段都有 phase_start 和 phase_end。 / Each phase has phase_start and phase_end."""
         events = []
 
         async def handler(event: SimulationEvent):
@@ -185,7 +185,7 @@ class TestProgressEventPhases:
 
     @pytest.mark.asyncio
     async def test_wave_events_emitted(self):
-        """RIPPLE 阶段中每轮 wave 都有 wave_start 和 wave_end。"""
+        """RIPPLE 阶段中每轮 wave 都有 wave_start 和 wave_end。 / Each wave in RIPPLE has wave_start and wave_end."""
         events = []
 
         async def handler(event: SimulationEvent):
@@ -214,11 +214,11 @@ class TestProgressEventPhases:
 
 
 class TestProgressEventAgents:
-    """验证 Agent 激活和响应事件。"""
+    """验证 Agent 激活和响应事件。 / Verify agent activation and response events."""
 
     @pytest.mark.asyncio
     async def test_agent_activated_and_responded_events(self):
-        """Agent 被激活时产生 agent_activated 和 agent_responded 事件。"""
+        """Agent 被激活时产生 agent_activated 和 agent_responded 事件。 / Agent activation emits agent_activated and agent_responded events."""
         events = []
 
         async def handler(event: SimulationEvent):
@@ -255,11 +255,11 @@ class TestProgressEventAgents:
 
 
 class TestProgressValues:
-    """验证 progress 值的单调递增性和边界。"""
+    """验证 progress 值的单调递增性和边界。 / Verify progress values are monotonically increasing and bounded."""
 
     @pytest.mark.asyncio
     async def test_progress_monotonically_increases(self):
-        """progress 值随事件推进单调递增。"""
+        """progress 值随事件推进单调递增。 / Progress values monotonically increase."""
         events = []
 
         async def handler(event: SimulationEvent):
@@ -287,13 +287,13 @@ class TestProgressValues:
         )
         await runtime.run({"event": {"description": "t"}})
 
-        # 只看 phase_start/phase_end/wave_start/wave_end 的 progress
+        # 只看阶段/波次事件的 progress / Only check phase/wave event progress
         phase_events = [e for e in events
                         if e.type in ("phase_start", "phase_end",
                                       "wave_start", "wave_end")]
         progress_values = [e.progress for e in phase_events]
 
-        # 单调非递减
+        # 单调非递减 / Monotonically non-decreasing
         for i in range(1, len(progress_values)):
             assert progress_values[i] >= progress_values[i - 1], (
                 f"progress decreased: {progress_values[i-1]} -> "
@@ -302,7 +302,7 @@ class TestProgressValues:
 
     @pytest.mark.asyncio
     async def test_progress_starts_at_zero_ends_at_one(self):
-        """progress 从 0.0 开始，最后一个事件为 1.0。"""
+        """progress 从 0.0 开始，最后一个事件为 1.0。 / Progress starts at 0.0, last event is 1.0."""
         events = []
 
         async def handler(event: SimulationEvent):
@@ -326,7 +326,7 @@ class TestProgressValues:
 
 
 class TestProgressRunId:
-    """验证所有事件携带一致的 run_id。"""
+    """验证所有事件携带一致的 run_id。 / Verify all events carry consistent run_id."""
 
     @pytest.mark.asyncio
     async def test_consistent_run_id(self):
@@ -354,11 +354,11 @@ class TestProgressRunId:
 
 
 class TestProgressTotalWaves:
-    """验证 total_waves 字段正确传播。"""
+    """验证 total_waves 字段正确传播。 / Verify total_waves field propagates correctly."""
 
     @pytest.mark.asyncio
     async def test_total_waves_populated_after_init(self):
-        """INIT 完成后所有事件都携带 total_waves。"""
+        """INIT 完成后所有事件都携带 total_waves。 / All events carry total_waves after INIT completes."""
         events = []
 
         async def handler(event: SimulationEvent):

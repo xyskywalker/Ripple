@@ -31,6 +31,10 @@ RETRY_JSON_PREFIX_SHORT = (
     "上一次输出解析失败: {error}\n请重新输出合法 JSON。\n\n"
 )
 
+# v4: Skill prompt 在 system_prompt 中的注入分隔符 / Separator for skill prompt injection in system_prompt
+SKILL_CONTEXT_SEPARATOR = "\n\n===== SKILL CONTEXT =====\n\n"
+SKILL_CONTEXT_END = "\n\n===== END SKILL CONTEXT =====\n\n"
+
 
 # =============================================================================
 # 全视者 (Omniscient) 提示词 — Phase INIT / Omniscient Prompts — Phase INIT
@@ -302,6 +306,7 @@ OMNISCIENT_SYNTHESIZE_RELATIVE = (
     "  }},\n"
     '  "timeline": [\n'
     "    {{\n"
+    '      "wave": 1,\n'
     '      "time_from_publish": "0-2h",\n'
     '      "event": "事件描述",\n'
     '      "drivers": ["driver1", "driver2"]\n'
@@ -309,14 +314,15 @@ OMNISCIENT_SYNTHESIZE_RELATIVE = (
     "  ],\n"
     '  "bifurcation_points": [\n'
     "    {{\n"
-    '      "wave_range": "Wave0-1",\n'
+    '      "wave": 3,\n'
+    '      "wave_range": "Wave2-4",\n'
     '      "turning_point": "转折描述",\n'
     '      "counterfactual": "反事实推理"\n'
     "    }}\n"
     "  ],\n"
     '  "agent_insights": {{\n'
-    '    "stars": {{"star_id": {{"role": "角色", "best_leverage": "建议"}}}},\n'
-    '    "seas": {{"sea_id": {{"core_motivation": "动机", "best_message": "建议"}}}}\n'
+    '    "stars": {{"star_id": {{"role": "角色", "insight": "关键洞察", "best_leverage": "建议"}}}},\n'
+    '    "seas": {{"sea_id": {{"core_motivation": "动机", "insight": "关键洞察", "best_message": "建议"}}}}\n'
     "  }}\n"
     "}}\n"
     "```\n"
@@ -361,6 +367,7 @@ OMNISCIENT_SYNTHESIZE_ANCHORED = (
     "  }},\n"
     '  "timeline": [\n'
     "    {{\n"
+    '      "wave": 1,\n'
     '      "time_from_publish": "0-2h",\n'
     '      "event": "事件描述",\n'
     '      "drivers": ["driver1", "driver2"]\n'
@@ -368,17 +375,300 @@ OMNISCIENT_SYNTHESIZE_ANCHORED = (
     "  ],\n"
     '  "bifurcation_points": [\n'
     "    {{\n"
-    '      "wave_range": "Wave0-1",\n'
+    '      "wave": 3,\n'
+    '      "wave_range": "Wave2-4",\n'
     '      "turning_point": "转折描述",\n'
     '      "counterfactual": "反事实推理"\n'
     "    }}\n"
     "  ],\n"
     '  "agent_insights": {{\n'
-    '    "stars": {{"star_id": {{"role": "角色", "best_leverage": "建议"}}}},\n'
-    '    "seas": {{"sea_id": {{"core_motivation": "动机", "best_message": "建议"}}}}\n'
+    '    "stars": {{"star_id": {{"role": "角色", "insight": "关键洞察", "best_leverage": "建议"}}}},\n'
+    '    "seas": {{"sea_id": {{"core_motivation": "动机", "insight": "关键洞察", "best_message": "建议"}}}}\n'
     "  }}\n"
     "}}\n"
     "```\n"
+)
+
+
+# =============================================================================
+# 全视者 (Omniscient) 提示词 — v4 分层版本 / Stratified Prompt Pairs
+#
+# 每个阶段拆分为 _SYSTEM（指令/schema/约束 → system_prompt 可信区）
+# 和 _USER（运行时数据 → user_prompt 非可信区）。
+# Each phase is split into _SYSTEM (instructions/schema/constraints → trusted zone)
+# and _USER (runtime data → untrusted zone).
+# =============================================================================
+
+# --- INIT:dynamics ---
+OMNISCIENT_INIT_DYNAMICS_SYSTEM = (
+    "## 你的任务\n\n"
+    "请分析领域画像中的时间特征，提取每轮 wave 对应的现实时间窗口。\n"
+    "{horizon_line}"
+    "**重点关注**：画像中的内容衰减周期、推荐算法刷新周期、"
+    "传播关键窗口、互动高峰时段等时间线索。\n"
+    "如果画像中有明确的时间约定，直接使用；"
+    "如果没有，请基于对该平台特性的理解裁定一个合理值。\n\n"
+    "输出严格 JSON，格式如下：\n"
+    "```json\n"
+    "{{\n"
+    '  "wave_time_window": "4h",\n'
+    '  "wave_time_window_reasoning": "从画像中提取的推理依据...",\n'
+    '  "energy_decay_per_wave": 0.15,\n'
+    '  "platform_characteristics": "平台关键特征摘要"\n'
+    "}}\n"
+    "```\n"
+)
+
+OMNISCIENT_INIT_DYNAMICS_USER = (
+    "## 领域画像\n\n{skill_profile}\n\n"
+    "## 模拟请求\n\n{input_json}\n\n"
+)
+
+# --- INIT:agents ---
+OMNISCIENT_INIT_AGENTS_SYSTEM = (
+    "## 你的任务\n\n"
+    "请根据以上信息，创建参与模拟的 Star（KOL）Agent 和 "
+    "Sea（用户群体）Agent。\n\n"
+    "输出严格 JSON，格式如下：\n"
+    "```json\n"
+    "{{\n"
+    '  "star_configs": [\n'
+    '    {{"id": "star_xxx", "description": "...", '
+    '"influence_level": "high/medium/low"}}\n'
+    "  ],\n"
+    '  "sea_configs": [\n'
+    '    {{"id": "sea_xxx", "description": "...", '
+    '"interest_tags": ["tag1", "tag2"]}}\n'
+    "  ]\n"
+    "}}\n"
+    "```\n"
+)
+
+OMNISCIENT_INIT_AGENTS_USER = (
+    "## 领域画像\n\n{skill_profile}\n\n"
+    "## 模拟请求\n\n{input_json}\n\n"
+    "## 已确定的动态参数\n\n{dp_json}\n\n"
+)
+
+# --- INIT:topology ---
+OMNISCIENT_INIT_TOPOLOGY_SYSTEM = (
+    "## 你的任务\n\n"
+    "请基于以上已确定的 Agent 列表，构建拓扑结构和种子涟漪。\n\n"
+    "输出严格 JSON，格式如下：\n"
+    "```json\n"
+    "{{\n"
+    '  "topology": {{\n'
+    '    "edges": [\n'
+    '      {{"from": "agent_id_1", "to": "agent_id_2", '
+    '"weight": 0.7}}\n'
+    "    ]\n"
+    "  }},\n"
+    '  "seed_ripple": {{\n'
+    '    "content": "种子涟漪内容描述",\n'
+    '    "initial_energy": 0.6\n'
+    "  }}\n"
+    "}}\n"
+    "```\n"
+)
+
+OMNISCIENT_INIT_TOPOLOGY_USER = (
+    "## 领域画像\n\n{skill_profile}\n\n"
+    "## 模拟请求\n\n{input_json}\n\n"
+    "## 已确定的动态参数\n\n{dp_json}\n\n"
+    "## 已确定的 Agent 配置\n\n{agents_json}\n\n"
+)
+
+# --- RIPPLE:verdict ---
+OMNISCIENT_RIPPLE_VERDICT_SYSTEM = (
+    "{cas_principles}"
+    "## 你的任务\n\n"
+    "请决定本轮涟漪传播。你是全视者编排器，必须将涟漪委派给具体的 "
+    "Agent 来模拟。每轮 wave 中，你应该激活所有仍有能量的 Agent "
+    "并考虑新增被涟漪触达的 Agent"
+    "（除非你决定终止传播）。\n\n"
+    "**重要：activated_agents 必须使用上面列出的准确 agent_id 值。**\n\n"
+    "输出严格 JSON，格式如下：\n"
+    "```json\n"
+    "{{\n"
+    '  "wave_number": {{wave_number}},\n'
+    '  "simulated_time_elapsed": "例: 2h",\n'
+    '  "simulated_time_remaining": "例: 46h",\n'
+    '  "continue_propagation": true,\n'
+    '  "activated_agents": [\n'
+    "    {{\n"
+    '      "agent_id": "agent_id",\n'
+    '      "incoming_ripple_energy": 0.55,\n'
+    '      "activation_reason": "激活原因"\n'
+    "    }}\n"
+    "  ],\n"
+    '  "skipped_agents": [\n'
+    "    {{\n"
+    '      "agent_id": "agent_id",\n'
+    '      "skip_reason": "跳过原因"\n'
+    "    }}\n"
+    "  ],\n"
+    '  "global_observation": "本轮全局观察"\n'
+    "}}\n"
+    "```\n"
+)
+
+OMNISCIENT_RIPPLE_VERDICT_USER = (
+    "## 当前 Wave: {wave_number}\n\n"
+    "{time_progress}"
+    "## 系统状态\n\n{snapshot_json}\n\n"
+    "## 传播历史\n\n{propagation_history}\n\n"
+    "## 可用 Agent 列表（你必须从以下 agent_id 中选择）\n\n"
+    "{agent_list}\n\n"
+)
+
+# --- OBSERVE ---
+OMNISCIENT_OBSERVE_SYSTEM = (
+    "## 你的任务\n\n"
+    "请分析整个传播过程，判断当前相态和涌现事件。\n\n"
+    "输出严格 JSON，格式如下：\n"
+    "```json\n"
+    "{{\n"
+    '  "phase_vector": {{\n'
+    '    "heat": "growth",\n'
+    '    "sentiment": "unified",\n'
+    '    "coherence": "ordered"\n'
+    "  }},\n"
+    '  "phase_transition_detected": false,\n'
+    '  "transition_description": "",\n'
+    '  "emergence_events": [\n'
+    '    {{"description": "涌现事件描述", "evidence": "证据"}}\n'
+    "  ],\n"
+    '  "topology_recommendations": []\n'
+    "}}\n"
+    "```\n\n"
+    "**字段约束：**\n"
+    "- `heat` 必须为以下之一: seed | growth | explosion | stable | decline\n"
+    "- `sentiment` 必须为以下之一: unified | polarized | neutral\n"
+    "- `coherence` 必须为以下之一: ordered | chaotic | fragmented\n"
+)
+
+OMNISCIENT_OBSERVE_USER = (
+    "## 系统状态\n\n{snapshot_json}\n\n"
+    "## 完整传播历史\n\n{full_history}\n\n"
+)
+
+# --- SYNTHESIZE:relative ---
+OMNISCIENT_SYNTHESIZE_RELATIVE_SYSTEM = (
+    "## 你的任务\n\n"
+    "请合成最终预测结果。\n\n"
+    "**重要：本次模拟没有提供历史参考数据，因此不要输出任何绝对数字。"
+    "所有预测必须以相对百分比形式表达，描述相对于同类内容平均水平的变化。**\n\n"
+    "输出严格 JSON，格式如下：\n"
+    "```json\n"
+    "{{\n"
+    '  "prediction": {{\n'
+    '    "impact": "简要影响描述",\n'
+    '    "relative_estimate": {{\n'
+    '      "simulation_horizon": "48h",\n'
+    '      "vs_baseline": "描述参考基线（同类内容平均水平）",\n'
+    '      "views_relative": "+15%~+30%",\n'
+    '      "engagements_relative": "+10%~+25%",\n'
+    '      "favorites_relative": "+5%~+20%",\n'
+    '      "comments_relative": "+10%~+30%",\n'
+    '      "shares_relative": "+5%~+15%",\n'
+    '      "follows_relative": "+2%~+10%",\n'
+    '      "confidence": "low/medium/high",\n'
+    '      "confidence_reasoning": "推理依据"\n'
+    "    }},\n"
+    '    "verdict": "一句话结论（必须包含以下英文关键词之一：'
+    'explosion / growth / decline / stable / seed）"\n'
+    "  }},\n"
+    '  "timeline": [\n'
+    "    {{\n"
+    '      "wave": 1,\n'
+    '      "time_from_publish": "0-2h",\n'
+    '      "event": "事件描述",\n'
+    '      "drivers": ["driver1", "driver2"]\n'
+    "    }}\n"
+    "  ],\n"
+    '  "bifurcation_points": [\n'
+    "    {{\n"
+    '      "wave": 3,\n'
+    '      "wave_range": "Wave2-4",\n'
+    '      "turning_point": "转折描述",\n'
+    '      "counterfactual": "反事实推理"\n'
+    "    }}\n"
+    "  ],\n"
+    '  "agent_insights": {{\n'
+    '    "stars": {{"star_id": {{"role": "角色", "insight": "关键洞察", "best_leverage": "建议"}}}},\n'
+    '    "seas": {{"sea_id": {{"core_motivation": "动机", "insight": "关键洞察", "best_message": "建议"}}}}\n'
+    "  }}\n"
+    "}}\n"
+    "```\n"
+)
+
+OMNISCIENT_SYNTHESIZE_RELATIVE_USER = (
+    "## 最终系统状态\n\n{snapshot_json}\n\n"
+    "## 观测分析\n\n{obs_json}\n\n"
+    "## 原始模拟请求\n\n{input_json}\n\n"
+)
+
+# --- SYNTHESIZE:anchored ---
+OMNISCIENT_SYNTHESIZE_ANCHORED_SYSTEM = (
+    "## 你的任务\n\n"
+    "请合成最终预测结果。\n\n"
+    "**重要：本次模拟提供了历史参考数据。"
+    "你必须先展示历史基线，再给出预测变化。"
+    "绝对值必须从历史基线 + 变化百分比推导得出。"
+    "预测值不应偏离历史基线超过 5 倍（上限）或 0.2 倍（下限），"
+    "除非有极强的涌现信号支持。**\n\n"
+    "输出严格 JSON，格式如下：\n"
+    "```json\n"
+    "{{\n"
+    '  "prediction": {{\n'
+    '    "impact": "简要影响描述",\n'
+    '    "anchored_estimate": {{\n'
+    '      "simulation_horizon": "48h",\n'
+    '      "historical_baseline": {{\n'
+    '        "source": "用户提供的历史数据",\n'
+    '        "metrics": {{"avg_views": 50000}}\n'
+    "      }},\n"
+    '      "predicted_change": "+20%",\n'
+    '      "views": {{"p50": 60000, "p80": 75000, "p95": 100000}},\n'
+    '      "engagements_total": {{"p50": 9600}},\n'
+    '      "favorites": {{"p50": 3200}},\n'
+    '      "comments": {{"p50": 640}},\n'
+    '      "shares": {{"p50": 480}},\n'
+    '      "follows_gained": {{"p50": 150}},\n'
+    '      "confidence": "low/medium/high",\n'
+    '      "confidence_reasoning": "推理依据"\n'
+    "    }},\n"
+    '    "verdict": "一句话结论（必须包含以下英文关键词之一：'
+    'explosion / growth / decline / stable / seed）"\n'
+    "  }},\n"
+    '  "timeline": [\n'
+    "    {{\n"
+    '      "wave": 1,\n'
+    '      "time_from_publish": "0-2h",\n'
+    '      "event": "事件描述",\n'
+    '      "drivers": ["driver1", "driver2"]\n'
+    "    }}\n"
+    "  ],\n"
+    '  "bifurcation_points": [\n'
+    "    {{\n"
+    '      "wave": 3,\n'
+    '      "wave_range": "Wave2-4",\n'
+    '      "turning_point": "转折描述",\n'
+    '      "counterfactual": "反事实推理"\n'
+    "    }}\n"
+    "  ],\n"
+    '  "agent_insights": {{\n'
+    '    "stars": {{"star_id": {{"role": "角色", "insight": "关键洞察", "best_leverage": "建议"}}}},\n'
+    '    "seas": {{"sea_id": {{"core_motivation": "动机", "insight": "关键洞察", "best_message": "建议"}}}}\n'
+    "  }}\n"
+    "}}\n"
+    "```\n"
+)
+
+OMNISCIENT_SYNTHESIZE_ANCHORED_USER = (
+    "## 最终系统状态\n\n{snapshot_json}\n\n"
+    "## 观测分析\n\n{obs_json}\n\n"
+    "## 原始模拟请求\n\n{input_json}\n\n"
 )
 
 

@@ -1,4 +1,5 @@
 # tests/agents/test_omniscient.py
+# 全视者 Agent 测试 / OmniscientAgent tests
 import pytest
 import json
 from unittest.mock import AsyncMock, MagicMock
@@ -9,7 +10,7 @@ from ripple.primitives.models import OmniscientVerdict
 class TestOmniscientInit:
     @pytest.mark.asyncio
     async def test_init_produces_star_and_sea_configs(self):
-        """全视者 INIT 应通过 3 次 sub-call 产生星海配置、拓扑、动态参数。"""
+        """全视者 INIT 应通过 3 次 sub-call 产生星海配置、拓扑、动态参数。 / Omniscient INIT produces star/sea configs, topology, dynamic params via 3 sub-calls."""
         mock_llm_caller = AsyncMock()
         mock_llm_caller.side_effect = [
             # Sub-call 1: dynamics
@@ -59,7 +60,7 @@ class TestOmniscientInit:
             },
         )
 
-        assert mock_llm_caller.call_count == 3  # 3 sub-calls
+        assert mock_llm_caller.call_count == 3  # 3 次 sub-call / 3 sub-calls
         assert len(result["star_configs"]) >= 1
         assert len(result["sea_configs"]) >= 1
         assert "topology" in result
@@ -68,12 +69,14 @@ class TestOmniscientInit:
 
     @pytest.mark.asyncio
     async def test_init_3_subcalls_order(self):
-        """验证 INIT 3 次 sub-call 的顺序和内容传递。"""
-        calls = []
+        """验证 INIT 3 次 sub-call 的顺序和内容传递。 / Verify INIT 3 sub-calls order and content passing."""
+        sys_calls = []
+        user_calls = []
 
         async def tracking_caller(*, system_prompt="", user_prompt=""):
-            calls.append(user_prompt)
-            idx = len(calls)
+            sys_calls.append(system_prompt)
+            user_calls.append(user_prompt)
+            idx = len(user_calls)
             if idx == 1:
                 return json.dumps({
                     "wave_time_window": "2h",
@@ -101,25 +104,26 @@ class TestOmniscientInit:
                               "skill": "test"},
         )
 
-        assert len(calls) == 3
-        # Sub-call 1 should mention time extraction
-        assert "时间" in calls[0] or "wave_time_window" in calls[0]
-        # Sub-call 2 should mention agents
-        assert "star_configs" in calls[1] or "Agent" in calls[1]
-        # Sub-call 3 should mention topology
-        assert "topology" in calls[2] or "拓扑" in calls[2]
-        # Sub-call 2 should receive dynamics from sub-call 1
-        assert "2h" in calls[1]
-        # Sub-call 3 should receive agent configs from sub-call 2
-        assert "star_1" in calls[2]
+        assert len(user_calls) == 3
+        # v4 stratification: instructions/schema → system_prompt, runtime data → user_prompt
+        # Sub-call 1 should mention time extraction in system_prompt
+        assert "时间" in sys_calls[0] or "wave_time_window" in sys_calls[0]
+        # Sub-call 2 should mention agents in system_prompt
+        assert "star_configs" in sys_calls[1] or "Agent" in sys_calls[1]
+        # Sub-call 3 should mention topology in system_prompt
+        assert "topology" in sys_calls[2] or "拓扑" in sys_calls[2]
+        # Sub-call 2 should receive dynamics from sub-call 1 in user_prompt
+        assert "2h" in user_calls[1]
+        # Sub-call 3 should receive agent configs from sub-call 2 in user_prompt
+        assert "star_1" in user_calls[2]
 
     @pytest.mark.asyncio
     async def test_init_retry_on_invalid_json(self):
-        """全视者 INIT sub-call 在 JSON 解析失败时应重试。"""
+        """全视者 INIT sub-call 在 JSON 解析失败时应重试。 / INIT sub-call should retry on JSON parse failure."""
         mock_llm_caller = AsyncMock()
         mock_llm_caller.side_effect = [
-            "这不是JSON",  # Sub-call 1 第1次失败
-            json.dumps({    # Sub-call 1 第2次成功
+            "这不是JSON",  # Sub-call 1 第1次失败 / Sub-call 1 first attempt fails
+            json.dumps({    # Sub-call 1 第2次成功 / Sub-call 1 second attempt succeeds
                 "wave_time_window": "2h",
                 "wave_time_window_reasoning": "test",
                 "energy_decay_per_wave": 0.1,
@@ -144,14 +148,14 @@ class TestOmniscientInit:
                               "skill": "test"},
         )
 
-        assert mock_llm_caller.call_count == 4  # 1 retry + 3 successful
+        assert mock_llm_caller.call_count == 4  # 1 次重试 + 3 次成功 / 1 retry + 3 successful
         assert len(result["star_configs"]) >= 1
 
 
 class TestOmniscientRippleVerdict:
     @pytest.mark.asyncio
     async def test_ripple_verdict_activates_agents(self):
-        """RIPPLE 裁决应返回 OmniscientVerdict 含激活列表。"""
+        """RIPPLE 裁决应返回 OmniscientVerdict 含激活列表。 / RIPPLE verdict should return OmniscientVerdict with activation list."""
         mock_llm_caller = AsyncMock()
         mock_llm_caller.return_value = json.dumps({
             "wave_number": 1,
@@ -185,7 +189,7 @@ class TestOmniscientRippleVerdict:
 
     @pytest.mark.asyncio
     async def test_ripple_verdict_terminates(self):
-        """RIPPLE 裁决应能终止传播。"""
+        """RIPPLE 裁决应能终止传播。 / RIPPLE verdict should be able to terminate propagation."""
         mock_llm_caller = AsyncMock()
         mock_llm_caller.return_value = json.dumps({
             "wave_number": 8,
@@ -209,7 +213,7 @@ class TestOmniscientRippleVerdict:
 
     @pytest.mark.asyncio
     async def test_ripple_verdict_includes_time_progress(self):
-        """RIPPLE 裁决的 prompt 应包含时间进度信息。"""
+        """RIPPLE 裁决的 prompt 应包含时间进度信息。 / RIPPLE verdict prompt should contain time progress info."""
         calls = []
 
         async def tracking_caller(*, system_prompt="", user_prompt=""):
@@ -245,7 +249,7 @@ class TestOmniscientRippleVerdict:
 class TestOmniscientObserve:
     @pytest.mark.asyncio
     async def test_observe_detects_emergence(self):
-        """OBSERVE 应检测涌现事件。"""
+        """OBSERVE 应检测涌现事件。 / OBSERVE should detect emergence events."""
         mock_llm_caller = AsyncMock()
         mock_llm_caller.return_value = json.dumps({
             "phase_vector": {
@@ -273,7 +277,7 @@ class TestOmniscientObserve:
 
     @pytest.mark.asyncio
     async def test_observe_detects_phase_transition(self):
-        """OBSERVE 应能检测相变。"""
+        """OBSERVE 应能检测相变。 / OBSERVE should detect phase transitions."""
         mock_llm_caller = AsyncMock()
         mock_llm_caller.return_value = json.dumps({
             "phase_vector": {
@@ -299,7 +303,7 @@ class TestOmniscientObserve:
 class TestOmniscientSynthesizeResult:
     @pytest.mark.asyncio
     async def test_synthesize_result(self):
-        """synthesize_result 应返回预测结果。"""
+        """synthesize_result 应返回预测结果。 / synthesize_result should return prediction."""
         mock_llm_caller = AsyncMock()
         mock_llm_caller.return_value = json.dumps({
             "prediction": {"impact": "high"},
@@ -323,11 +327,11 @@ class TestOmniscientSynthesizeResult:
 class TestOmniscientObservePrompt:
     @pytest.mark.asyncio
     async def test_observe_prompt_constrains_heat_values(self):
-        """OBSERVE prompt should contain JSON example with heat enum values."""
-        calls = []
+        """OBSERVE prompt 应包含 heat 枚举值的 JSON 示例。 / OBSERVE prompt should contain heat enum JSON example."""
+        sys_calls = []
 
         async def tracking_caller(*, system_prompt="", user_prompt=""):
-            calls.append(user_prompt)
+            sys_calls.append(system_prompt)
             return json.dumps({
                 "phase_vector": {
                     "heat": "growth",
@@ -342,11 +346,10 @@ class TestOmniscientObservePrompt:
         agent = OmniscientAgent(llm_caller=tracking_caller)
         await agent.observe(field_snapshot={}, full_history="test")
 
-        prompt = calls[0]
-        # Should contain enum constraint for heat
+        prompt = sys_calls[0]
+        # v4: enum constraints and JSON schema are in system_prompt
         assert "seed" in prompt and "growth" in prompt and "explosion" in prompt
         assert "stable" in prompt and "decline" in prompt
-        # Should contain JSON example
         assert '"phase_vector"' in prompt
         assert '"heat"' in prompt
 
@@ -354,11 +357,11 @@ class TestOmniscientObservePrompt:
 class TestOmniscientCASPrompt:
     @pytest.mark.asyncio
     async def test_ripple_prompt_contains_cas_principles(self):
-        """Ripple prompt should include CAS accumulation principles."""
-        calls = []
+        """Ripple prompt 应包含 CAS 累积原则。 / Ripple prompt should include CAS accumulation principles."""
+        sys_calls = []
 
         async def tracking_caller(*, system_prompt="", user_prompt=""):
-            calls.append(user_prompt)
+            sys_calls.append(system_prompt)
             return json.dumps({
                 "wave_number": 0,
                 "simulated_time_elapsed": "0h",
@@ -376,8 +379,8 @@ class TestOmniscientCASPrompt:
             propagation_history="test",
         )
 
-        prompt = calls[0]
-        # CAS principles should be present
+        prompt = sys_calls[0]
+        # v4: CAS principles are in system_prompt
         assert "累积叠加" in prompt
         assert "自然衰减" in prompt
         assert "非线性" in prompt or "涌现" in prompt
@@ -385,11 +388,11 @@ class TestOmniscientCASPrompt:
 
     @pytest.mark.asyncio
     async def test_ripple_prompt_contains_anti_optimism_principles(self):
-        """Ripple prompt should include anti-optimism CAS principles."""
-        calls = []
+        """Ripple prompt 应包含反乐观 CAS 原则。 / Ripple prompt should include anti-optimism CAS principles."""
+        sys_calls = []
 
         async def tracking_caller(*, system_prompt="", user_prompt=""):
-            calls.append(user_prompt)
+            sys_calls.append(system_prompt)
             return json.dumps({
                 "wave_number": 0,
                 "simulated_time_elapsed": "0h",
@@ -407,19 +410,20 @@ class TestOmniscientCASPrompt:
             propagation_history="test",
         )
 
-        prompt = calls[0]
+        prompt = sys_calls[0]
+        # v4: anti-optimism principles are in system_prompt
         assert "注意力" in prompt and "竞争" in prompt
         assert "饱和" in prompt
         assert "基础概率" in prompt or "默认预期" in prompt
 
     @pytest.mark.asyncio
     async def test_ripple_prompt_json_example_shows_multiple_agents(self):
-        """JSON example in prompt should show multiple agents including
-        continued activation pattern."""
-        calls = []
+        """prompt 中的 JSON 示例应展示多个 Agent 含持续激活模式。
+        / JSON example in prompt should show multiple agents with continued activation."""
+        sys_calls = []
 
         async def tracking_caller(*, system_prompt="", user_prompt=""):
-            calls.append(user_prompt)
+            sys_calls.append(system_prompt)
             return json.dumps({
                 "wave_number": 1,
                 "simulated_time_elapsed": "2h",
@@ -437,13 +441,13 @@ class TestOmniscientCASPrompt:
             propagation_history="test",
         )
 
-        prompt = calls[0]
-        # Example should contain multiple agents
+        prompt = sys_calls[0]
+        # v4: JSON examples are in system_prompt
         assert prompt.count('"agent_id"') >= 3
 
     @pytest.mark.asyncio
     async def test_ripple_prompt_shows_agent_stats(self):
-        """When snapshot has agent stats, prompt should display them."""
+        """快照含 Agent 统计时，prompt 应展示它们。 / When snapshot has agent stats, prompt should display them."""
         calls = []
 
         async def tracking_caller(*, system_prompt="", user_prompt=""):
@@ -478,18 +482,18 @@ class TestOmniscientCASPrompt:
         )
 
         prompt = calls[0]
-        # Agent list should include activation stats
+        # Agent 列表应包含激活统计 / Agent list should include activation stats
         assert "已激活3次" in prompt or "激活3次" in prompt
 
 
 class TestOmniscientSynthPrompt:
     @pytest.mark.asyncio
     async def test_synth_prompt_specifies_timeline_fields(self):
-        """SYNTHESIZE prompt should specify time_from_publish and wave_range fields."""
-        calls = []
+        """SYNTHESIZE prompt 应指定 time_from_publish 和 wave_range 字段。 / SYNTHESIZE prompt should specify time_from_publish and wave_range."""
+        sys_calls = []
 
         async def tracking_caller(*, system_prompt="", user_prompt=""):
-            calls.append(user_prompt)
+            sys_calls.append(system_prompt)
             return json.dumps({
                 "prediction": {"impact": "high", "verdict": "growth trend"},
                 "timeline": [{"time_from_publish": "0-2h", "event": "test"}],
@@ -502,7 +506,8 @@ class TestOmniscientSynthPrompt:
             field_snapshot={}, observation={}, simulation_input={},
         )
 
-        prompt = calls[0]
+        prompt = sys_calls[0]
+        # v4: schema/field specifications are in system_prompt
         assert "time_from_publish" in prompt
         assert "wave_range" in prompt
         assert "turning_point" in prompt
@@ -510,11 +515,11 @@ class TestOmniscientSynthPrompt:
 
     @pytest.mark.asyncio
     async def test_synth_prompt_requires_phase_keyword_in_verdict(self):
-        """SYNTHESIZE prompt should instruct verdict to contain phase keyword."""
-        calls = []
+        """SYNTHESIZE prompt 应要求 verdict 包含相态关键词。 / SYNTHESIZE prompt should instruct verdict to contain phase keyword."""
+        sys_calls = []
 
         async def tracking_caller(*, system_prompt="", user_prompt=""):
-            calls.append(user_prompt)
+            sys_calls.append(system_prompt)
             return json.dumps({
                 "prediction": {"impact": "test", "verdict": "test"},
                 "timeline": [],
@@ -527,19 +532,21 @@ class TestOmniscientSynthPrompt:
             field_snapshot={}, observation={}, simulation_input={},
         )
 
-        prompt = calls[0]
-        # Should mention phase keywords
+        prompt = sys_calls[0]
+        # v4: phase keywords instruction is in system_prompt
         assert "explosion" in prompt or "growth" in prompt
 
 
 class TestOmniscientWave0Hint:
     @pytest.mark.asyncio
     async def test_wave0_prompt_contains_first_wave_hint(self):
-        """Wave 0 ripple prompt should contain hint about Sea priority."""
-        calls = []
+        """Wave 0 的 prompt 应包含 Sea 优先提示。 / Wave 0 ripple prompt should contain Sea priority hint."""
+        sys_calls = []
+        user_calls = []
 
         async def tracking_caller(*, system_prompt="", user_prompt=""):
-            calls.append(user_prompt)
+            sys_calls.append(system_prompt)
+            user_calls.append(user_prompt)
             return json.dumps({
                 "wave_number": 0,
                 "simulated_time_elapsed": "0h",
@@ -557,13 +564,14 @@ class TestOmniscientWave0Hint:
             propagation_history="test",
         )
 
-        prompt = calls[0]
-        assert "首轮" in prompt or "种子涟漪" in prompt
-        assert "群体" in prompt or "Sea" in prompt
+        # v4: wave 0 hints may be in system_prompt or user_prompt
+        combined = sys_calls[0] + user_calls[0]
+        assert "首轮" in combined or "种子涟漪" in combined
+        assert "群体" in combined or "Sea" in combined
 
     @pytest.mark.asyncio
     async def test_wave1_prompt_does_not_contain_first_wave_hint(self):
-        """Wave 1+ ripple prompt should NOT contain the first wave hint."""
+        """Wave 1+ 的 prompt 不应包含首轮提示。 / Wave 1+ prompt should NOT contain first wave hint."""
         calls = []
 
         async def tracking_caller(*, system_prompt="", user_prompt=""):
@@ -592,11 +600,11 @@ class TestOmniscientWave0Hint:
 class TestOmniscientSynthDualTemplate:
     @pytest.mark.asyncio
     async def test_synth_uses_relative_template_without_historical(self):
-        """Without historical data, synth prompt should use relative template."""
-        calls = []
+        """无历史数据时，synth prompt 应使用相对模板。 / Without historical data, synth uses relative template."""
+        sys_calls = []
 
         async def tracking_caller(*, system_prompt="", user_prompt=""):
-            calls.append(user_prompt)
+            sys_calls.append(system_prompt)
             return json.dumps({
                 "prediction": {
                     "impact": "moderate",
@@ -626,18 +634,19 @@ class TestOmniscientSynthDualTemplate:
             simulation_input={"event": {"description": "test"}},
         )
 
-        prompt = calls[0]
+        prompt = sys_calls[0]
+        # v4: template schema/instructions are in system_prompt
         assert "relative_estimate" in prompt
         assert "不要输出任何绝对数字" in prompt or "相对百分比" in prompt
         assert "prediction" in result
 
     @pytest.mark.asyncio
     async def test_synth_uses_anchored_template_with_historical(self):
-        """With historical data, synth prompt should use anchored template."""
-        calls = []
+        """有历史数据时，synth prompt 应使用锚定模板。 / With historical data, synth uses anchored template."""
+        sys_calls = []
 
         async def tracking_caller(*, system_prompt="", user_prompt=""):
-            calls.append(user_prompt)
+            sys_calls.append(system_prompt)
             return json.dumps({
                 "prediction": {
                     "impact": "moderate",
@@ -676,7 +685,8 @@ class TestOmniscientSynthDualTemplate:
             },
         )
 
-        prompt = calls[0]
+        prompt = sys_calls[0]
+        # v4: template schema/instructions are in system_prompt
         assert "anchored_estimate" in prompt
         assert "historical_baseline" in prompt
         assert "历史基线" in prompt or "历史" in prompt

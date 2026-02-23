@@ -109,7 +109,13 @@ def _empty_agent_stats() -> Dict[str, Any]:
 class SimulationRuntime:
     """Ripple 模拟运行时编排器。 / Ripple simulation runtime orchestrator."""
 
-    # 各阶段在总进度中的权重 / Phase weights in total progress (sum = 1.0)
+    _DEFAULT_PHASES = ["INIT", "SEED", "RIPPLE", "OBSERVE", "SYNTHESIZE"]
+    _PHASE_PROCESS_KEY_OVERRIDES = {
+        # Design/plan canonical key: "#/process/deliberation"
+        "DELIBERATE": "deliberation",
+    }
+
+    # 默认阶段权重（向后兼容参考）/ Default phase weights (backward compat reference)
     _PHASE_WEIGHTS = {
         "INIT": 0.05,
         "SEED": 0.05,
@@ -117,7 +123,6 @@ class SimulationRuntime:
         "OBSERVE": 0.10,
         "SYNTHESIZE": 0.10,
     }
-    _PHASE_OFFSETS = {}  # 运行时计算 / Computed at runtime
 
     def __init__(
         self,
@@ -130,8 +135,25 @@ class SimulationRuntime:
         recorder: Optional["SimulationRecorder"] = None,
         # 向后兼容：旧签名 agent_caller 同时用于 star 和 sea / Backward compat: legacy agent_caller used for both star and sea
         agent_caller: Optional[Callable[..., Awaitable[str]]] = None,
+        # v4: Skill prompts injected into agent system_prompt (trusted zone)
+        skill_prompts: Optional[Dict[str, str]] = None,
+        # v2 Phase registration: Skills can register extra phases
+        extra_phases: Optional[dict] = None,
     ):
-        self._omniscient = OmniscientAgent(llm_caller=omniscient_caller)
+        # v4: Build Omniscient system_prompt with skill context injection
+        from ripple.prompts import SKILL_CONTEXT_SEPARATOR, SKILL_CONTEXT_END
+        omniscient_system = ""
+        if skill_prompts and skill_prompts.get("omniscient"):
+            omniscient_system = (
+                SKILL_CONTEXT_SEPARATOR
+                + skill_prompts["omniscient"]
+                + SKILL_CONTEXT_END
+            )
+        self._omniscient = OmniscientAgent(
+            llm_caller=omniscient_caller,
+            system_prompt=omniscient_system,
+        )
+        self._skill_prompts = skill_prompts or {}
         # 兼容旧 API：如果传了 agent_caller，star/sea 未传则用它 / Compat: use agent_caller for star/sea if not provided
         if agent_caller is not None:
             self._star_caller = star_caller or agent_caller
@@ -152,11 +174,123 @@ class SimulationRuntime:
         self._seed_content: str = ""
         self._seed_energy: float = 0.0
 
-        # 预计算阶段进度偏移量 / Pre-compute phase progress offsets
+        # 构建阶段序列（支持 Skill 注册额外阶段）/ Build phase sequence (supports Skill extra phases)
+        self._phases = self._build_phase_sequence(extra_phases)
+
+        # 从阶段序列派生权重和偏移量 / Derive weights and offsets from phase sequence
+        self._phase_weights = {name: p["weight"] for name, p in self._phases.items()}
+        self._phase_offsets: Dict[str, float] = {}
         offset = 0.0
-        for phase in ("INIT", "SEED", "RIPPLE", "OBSERVE", "SYNTHESIZE"):
-            self._PHASE_OFFSETS[phase] = offset
-            offset += self._PHASE_WEIGHTS[phase]
+        for name in self._phases:
+            self._phase_offsets[name] = offset
+            offset += self._phase_weights[name]
+        # Extra phase outputs captured during run (lightweight summaries preferred)
+        self._extra_phase_outputs: Dict[str, Any] = {}
+        self._evidence_pack: Optional[Dict[str, Any]] = None
+
+    @classmethod
+    def _process_key_for_phase(cls, phase_name: str) -> str:
+        """Map phase name to recorder process key."""
+        return cls._PHASE_PROCESS_KEY_OVERRIDES.get(phase_name, phase_name.lower())
+
+    def _json_pointer_for_process_key(self, key: str) -> str:
+        """Build a JSON Pointer for a recorder process key.
+
+        - Single run output:     #/process/{key}
+        - Ensemble run output:   #/process/ensemble_runs/{i}/process/{key}
+        """
+        idx = None
+        if self._recorder is not None:
+            idx = getattr(self._recorder, "active_ensemble_run_index", None)
+        if isinstance(idx, int):
+            return f"#/process/ensemble_runs/{idx}/process/{key}"
+        return f"#/process/{key}"
+
+    def _phases_between(self, after_phase: str, before_phase: str) -> List[str]:
+        """Return ordered phase names between two phases (exclusive)."""
+        phase_names = list(self._phases.keys())
+        try:
+            start = phase_names.index(after_phase) + 1
+            end = phase_names.index(before_phase)
+        except ValueError:
+            return []
+        if start >= end:
+            return []
+        return phase_names[start:end]
+
+    async def _run_extra_phases_between(
+        self,
+        *,
+        after_phase: str,
+        before_phase: str,
+        context: Dict[str, Any],
+        run_id: str,
+        estimated_waves: int,
+    ) -> None:
+        """Execute registered extra phases between two default phases.
+
+        Context contract (best-effort, handlers must be tolerant to missing keys):
+        - Always present:
+            - run_id: str
+            - simulation_input: Dict[str, Any]
+            - skill_profile: str
+        - May be present depending on boundary:
+            - init_result, estimated_waves, max_waves (after INIT)
+            - seed_ripple (after SEED)
+            - effective_waves, propagation_history, field_snapshot, evidence_pack (after RIPPLE)
+            - observation (after OBSERVE)
+            - phase_outputs: Dict[str, Dict[str, Any]] (accumulates extra phase outputs)
+
+        Handler contract:
+        - handler(context) -> Dict[str, Any] | Any (non-dict results are wrapped)
+        - exceptions are surfaced (simulation fails) and emitted as SimulationEvent(type="error")
+        """
+        for phase_name in self._phases_between(after_phase, before_phase):
+            if phase_name in self._DEFAULT_PHASES:
+                continue
+            handler = self._phases.get(phase_name, {}).get("handler")
+            if handler is None:
+                continue
+
+            await self._emit(SimulationEvent(
+                type="phase_start", phase=phase_name, run_id=run_id,
+                progress=self._progress(phase_name, 0.0),
+                total_waves=estimated_waves,
+            ))
+
+            try:
+                result = handler(context)
+                if inspect.isawaitable(result):
+                    result = await result
+            except Exception as exc:
+                logger.error(
+                    "[%s] Extra phase '%s' failed: %s",
+                    run_id, phase_name, exc,
+                )
+                await self._emit(SimulationEvent(
+                    type="error", phase=phase_name, run_id=run_id,
+                    progress=self._progress(phase_name, 0.0),
+                    total_waves=estimated_waves,
+                    detail={"error": str(exc)},
+                ))
+                raise
+
+            if not isinstance(result, dict):
+                result = {"result": result}
+
+            self._extra_phase_outputs[phase_name] = result
+            context.setdefault("phase_outputs", {})[phase_name] = result
+
+            # Persist to recorder under process.<key> so JSON Pointers remain stable
+            if self._recorder:
+                key = self._process_key_for_phase(phase_name)
+                self._recorder.record_process(key, result)
+
+            await self._emit(SimulationEvent(
+                type="phase_end", phase=phase_name, run_id=run_id,
+                progress=self._progress(phase_name, 1.0),
+                total_waves=estimated_waves,
+            ))
 
     async def _emit(self, event: SimulationEvent) -> None:
         """触发进度回调（支持同步和异步回调）。 / Emit progress callback (sync and async)."""
@@ -171,9 +305,47 @@ class SimulationRuntime:
 
         phase_fraction: 当前阶段内部的完成比例 / Completion ratio within current phase (0.0 ~ 1.0).
         """
-        base = self._PHASE_OFFSETS.get(phase, 0.0)
-        weight = self._PHASE_WEIGHTS.get(phase, 0.0)
+        base = self._phase_offsets.get(phase, 0.0)
+        weight = self._phase_weights.get(phase, 0.0)
         return min(1.0, base + weight * phase_fraction)
+
+    def _build_phase_sequence(self, extra_phases: Optional[dict] = None) -> dict:
+        """Build ordered phase sequence with optional extra phases inserted.
+
+        Default phases use predefined weights. Extra phases are inserted at
+        their declared position ('after' key), and all weights are rebalanced.
+        """
+        from collections import OrderedDict
+
+        phases = OrderedDict(
+            (name, {"weight": self._PHASE_WEIGHTS[name], "handler": None})
+            for name in self._DEFAULT_PHASES
+        )
+
+        if not extra_phases:
+            return phases
+
+        # Insert extra phases at declared positions
+        ordered_keys = list(phases.keys())
+        for phase_name, config in extra_phases.items():
+            after = config.get("after", "RIPPLE")
+            if after in ordered_keys:
+                insert_idx = ordered_keys.index(after) + 1
+                ordered_keys.insert(insert_idx, phase_name)
+            else:
+                ordered_keys.append(phase_name)
+            phases[phase_name] = {
+                "weight": config.get("weight", 0.10),
+                "handler": config.get("handler"),
+            }
+
+        # Rebalance weights to sum to 1.0
+        total = sum(phases[k]["weight"] for k in ordered_keys)
+        if total > 0:
+            for k in ordered_keys:
+                phases[k]["weight"] /= total
+
+        return OrderedDict((k, phases[k]) for k in ordered_keys)
 
     async def run(
         self,
@@ -188,6 +360,11 @@ class SimulationRuntime:
         """
         run_id = run_id or str(uuid.uuid4())[:8]
         logger.info(f"[{run_id}] 开始模拟")
+        phase_context: Dict[str, Any] = {
+            "run_id": run_id,
+            "simulation_input": simulation_input,
+            "skill_profile": self._skill_profile,
+        }
 
         # Phase 0: INIT
         await self._emit(SimulationEvent(
@@ -199,6 +376,8 @@ class SimulationRuntime:
             simulation_input=simulation_input,
         )
         self._create_agents(init_result)
+        # 存储拓扑以供快照使用 / Store topology for snapshot use
+        self._topology = init_result.get("topology")
 
         dp = init_result.get("dynamic_parameters", {})
         wave_time_window = dp.get("wave_time_window", "")
@@ -258,6 +437,16 @@ class SimulationRuntime:
                 "max_waves": max_waves,
             },
         ))
+        phase_context["init_result"] = init_result
+        phase_context["estimated_waves"] = estimated_waves
+        phase_context["max_waves"] = max_waves
+        await self._run_extra_phases_between(
+            after_phase="INIT",
+            before_phase="SEED",
+            context=phase_context,
+            run_id=run_id,
+            estimated_waves=estimated_waves,
+        )
 
         # Phase 1: SEED
         logger.info(f"[{run_id}] ━━━ SEED 阶段 ━━━")
@@ -300,6 +489,17 @@ class SimulationRuntime:
                 "seed_energy": seed_energy,
             },
         ))
+        phase_context["seed_ripple"] = {
+            "content": seed_content,
+            "initial_energy": seed_energy,
+        }
+        await self._run_extra_phases_between(
+            after_phase="SEED",
+            before_phase="RIPPLE",
+            context=phase_context,
+            run_id=run_id,
+            estimated_waves=estimated_waves,
+        )
 
         # Phase 2: RIPPLE (统一涟漪循环) / Unified ripple loop
         wave_count = 0
@@ -461,6 +661,19 @@ class SimulationRuntime:
             wave=effective_waves - 1, total_waves=estimated_waves,
             detail={"effective_waves": effective_waves},
         ))
+        # PMF v3+: build compressed evidence pack for downstream phases (DELIBERATE/OBSERVE/SYNTHESIZE)
+        self._evidence_pack = self._build_evidence_pack()
+        phase_context["effective_waves"] = effective_waves
+        phase_context["propagation_history"] = "\n".join(history_lines)
+        phase_context["field_snapshot"] = self._build_snapshot()
+        phase_context["evidence_pack"] = self._evidence_pack
+        await self._run_extra_phases_between(
+            after_phase="RIPPLE",
+            before_phase="OBSERVE",
+            context=phase_context,
+            run_id=run_id,
+            estimated_waves=estimated_waves,
+        )
 
         # Phase 3: OBSERVE
         logger.info(f"[{run_id}] ━━━ OBSERVE 阶段 ━━━")
@@ -469,9 +682,32 @@ class SimulationRuntime:
             progress=self._progress("OBSERVE", 0.0),
             total_waves=estimated_waves,
         ))
+        # v4.2: OBSERVE should explicitly incorporate DELIBERATE (if present)
+        observe_history = "\n".join(history_lines)
+        deliberate_output = self._extra_phase_outputs.get("DELIBERATE")
+        if isinstance(deliberate_output, dict):
+            deliberation_summary = deliberate_output.get("deliberation_summary")
+            if deliberation_summary is None:
+                # Fallback: include the whole output except raw records
+                deliberation_summary = {
+                    k: v for k, v in deliberate_output.items()
+                    if k != "deliberation_records"
+                }
+            payload = {
+                "deliberation_summary": deliberation_summary,
+                "deliberation_records_ref": self._json_pointer_for_process_key(
+                    "deliberation"
+                ),
+            }
+            observe_history += (
+                "\n\n===== DELIBERATE SUMMARY (DATA) =====\n\n"
+                + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+                + "\n\n===== END DELIBERATE SUMMARY =====\n"
+            )
+
         observation = await self._omniscient.observe(
             field_snapshot=self._build_snapshot(),
-            full_history="\n".join(history_lines),
+            full_history=observe_history,
         )
 
         # 增量记录：OBSERVE 阶段结果 / Incremental record: OBSERVE phase result
@@ -483,6 +719,15 @@ class SimulationRuntime:
             progress=self._progress("OBSERVE", 1.0),
             total_waves=estimated_waves,
         ))
+        phase_context["observation"] = observation
+        phase_context["field_snapshot"] = self._build_snapshot()
+        await self._run_extra_phases_between(
+            after_phase="OBSERVE",
+            before_phase="SYNTHESIZE",
+            context=phase_context,
+            run_id=run_id,
+            estimated_waves=estimated_waves,
+        )
 
         # Phase 4: FEEDBACK & RECORD
         # 拓扑更新由全视者建议（如果有） / Topology update by Omniscient suggestion (if any)
@@ -523,18 +768,40 @@ class SimulationRuntime:
         return result
 
     def _create_agents(self, init_result: Dict[str, Any]) -> None:
-        """根据全视者 INIT 结果创建星海 Agent。 / Create Star/Sea agents from Omniscient INIT result."""
+        """根据全视者 INIT 结果创建星海 Agent。 / Create Star/Sea agents from Omniscient INIT result.
+
+        v4: Inject skill prompts into agent system_prompt_template (trusted zone).
+        """
+        # v4: Build skill context wrappers for star/sea
+        from ripple.prompts import SKILL_CONTEXT_SEPARATOR, SKILL_CONTEXT_END
+        star_skill = ""
+        if self._skill_prompts.get("star"):
+            star_skill = (
+                SKILL_CONTEXT_SEPARATOR
+                + self._skill_prompts["star"]
+                + SKILL_CONTEXT_END
+            )
+        sea_skill = ""
+        if self._skill_prompts.get("sea"):
+            sea_skill = (
+                SKILL_CONTEXT_SEPARATOR
+                + self._skill_prompts["sea"]
+                + SKILL_CONTEXT_END
+            )
+
         for sc in init_result.get("star_configs", []):
             self._stars[sc["id"]] = StarAgent(
                 agent_id=sc["id"],
                 description=sc.get("description", ""),
                 llm_caller=self._star_caller,
+                system_prompt_template=star_skill,
             )
         for sc in init_result.get("sea_configs", []):
             self._seas[sc["id"]] = SeaAgent(
                 agent_id=sc["id"],
                 description=sc.get("description", ""),
                 llm_caller=self._sea_caller,
+                system_prompt_template=sea_skill,
             )
 
     async def _activate_agents(
@@ -612,12 +879,37 @@ class SimulationRuntime:
             },
             "wave_records_count": len(self._wave_records),
         }
+        # 拓扑信息（INIT 阶段后可用） / Topology info (available after INIT phase)
+        topology = getattr(self, "_topology", None)
+        if topology is not None:
+            snapshot["topology"] = topology
         if getattr(self, "_wave_time_window", ""):
             snapshot["wave_time_window"] = self._wave_time_window
         if getattr(self, "_simulation_horizon", ""):
             snapshot["simulation_horizon"] = self._simulation_horizon
         if hasattr(self, "_energy_decay_per_wave"):
             snapshot["energy_decay_per_wave"] = self._energy_decay_per_wave
+
+        # PMF v3+: compressed evidence pack (used by deliberation + synthesis)
+        if getattr(self, "_evidence_pack", None) is not None:
+            snapshot["evidence_pack"] = self._evidence_pack
+
+        # Optional extra phase outputs (keep lightweight to avoid context overflow)
+        if getattr(self, "_extra_phase_outputs", None):
+            view: Dict[str, Any] = {}
+            for phase_name, output in self._extra_phase_outputs.items():
+                if phase_name == "DELIBERATE" and isinstance(output, dict):
+                    view[phase_name] = {
+                        k: v for k, v in output.items()
+                        if k != "deliberation_records"
+                    }
+                    view[phase_name]["deliberation_records_ref"] = (
+                        self._json_pointer_for_process_key("deliberation")
+                    )
+                else:
+                    view[phase_name] = output
+            snapshot["extra_phases"] = view
+
         return snapshot
 
     def _extract_agent_stats(self) -> Dict[str, Dict[str, Any]]:
@@ -642,6 +934,74 @@ class SimulationRuntime:
                 s["last_response"] = resp.get("response_type")
                 s["total_outgoing_energy"] += resp.get("outgoing_energy", 0.0)
         return stats
+
+    def _build_evidence_pack(self) -> Dict[str, Any]:
+        """Build a compressed evidence pack from wave records (PMF v3+).
+
+        Keeps structure stable and bounded:
+        - summary: <= 500 chars
+        - key_signals: <= 10 items
+        - full_records_ref: JSON Pointer to raw wave records in recorder output
+        """
+        total_waves = len(self._wave_records)
+        response_type_counts: Dict[str, int] = {}
+        signals: List[Dict[str, Any]] = []
+
+        for record in self._wave_records:
+            wave_id = f"w{record.wave_number}"
+            for aid, resp in (record.agent_responses or {}).items():
+                rtype = str(resp.get("response_type", "unknown"))
+                response_type_counts[rtype] = response_type_counts.get(rtype, 0) + 1
+                try:
+                    energy = float(resp.get("outgoing_energy", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    energy = 0.0
+
+                if rtype == "ignore" and energy <= 0:
+                    continue
+
+                signal_text = (
+                    resp.get("cluster_reaction")
+                    or resp.get("response_content")
+                    or resp.get("reasoning")
+                    or ""
+                )
+                signals.append({
+                    "wave_id": wave_id,
+                    "agent_id": aid,
+                    "response_type": rtype,
+                    "outgoing_energy": round(energy, 4),
+                    "signal": str(signal_text)[:160],
+                })
+
+        # Top signals by outgoing energy, cap at 10
+        signals.sort(key=lambda x: float(x.get("outgoing_energy", 0.0)), reverse=True)
+        key_signals = signals[:10]
+
+        stats = {
+            "total_waves": total_waves,
+            "response_type_counts": response_type_counts,
+            "stars_count": len(self._stars),
+            "seas_count": len(self._seas),
+        }
+
+        summary = (
+            f"{total_waves} waves completed. "
+            f"Responses: {response_type_counts}. "
+            f"Agents: Star×{len(self._stars)}, Sea×{len(self._seas)}."
+        )
+        source = (
+            f"RIPPLE Phase, Wave 0-{max(0, total_waves - 1)}"
+            if total_waves > 0
+            else "RIPPLE Phase, Wave 0-0"
+        )
+        return {
+            "source": source,
+            "summary": summary[:500],
+            "key_signals": key_signals,
+            "statistics": stats,
+            "full_records_ref": self._json_pointer_for_process_key("waves"),
+        }
 
     def _build_history_with_window(
         self, seed_line: str, window_size: int = 5,

@@ -1,4 +1,5 @@
 # tests/agents/test_sea.py
+# 海 Agent 测试 / SeaAgent tests
 import pytest
 import json
 from unittest.mock import AsyncMock
@@ -8,7 +9,7 @@ from ripple.agents.sea import SeaAgent
 class TestSeaAgent:
     @pytest.mark.asyncio
     async def test_respond_amplify(self):
-        """海 Agent 应能放大涟漪。"""
+        """海 Agent 应能放大涟漪。 / SeaAgent should amplify ripple."""
         mock_llm = AsyncMock()
         mock_llm.return_value = json.dumps({
             "response_type": "amplify",
@@ -35,7 +36,7 @@ class TestSeaAgent:
 
     @pytest.mark.asyncio
     async def test_respond_suppress(self):
-        """海 Agent 应能压制涟漪（沉默螺旋）。"""
+        """海 Agent 应能压制涟漪（沉默螺旋）。 / SeaAgent should suppress ripple (spiral of silence)."""
         mock_llm = AsyncMock()
         mock_llm.return_value = json.dumps({
             "response_type": "suppress",
@@ -60,7 +61,7 @@ class TestSeaAgent:
 
     @pytest.mark.asyncio
     async def test_respond_mutate(self):
-        """海 Agent 应能变异涟漪（语义漂移）。"""
+        """海 Agent 应能变异涟漪（语义漂移）。 / SeaAgent should mutate ripple (semantic drift)."""
         mock_llm = AsyncMock()
         mock_llm.return_value = json.dumps({
             "response_type": "mutate",
@@ -85,7 +86,7 @@ class TestSeaAgent:
 
     @pytest.mark.asyncio
     async def test_group_diversity_in_prompt(self):
-        """海 Agent 的 prompt 应包含群体内部差异性提示。"""
+        """海 Agent 的 prompt 应包含群体内部差异性提示。 / SeaAgent prompt should include intra-group diversity hint."""
         mock_llm = AsyncMock()
         mock_llm.return_value = json.dumps({
             "response_type": "absorb",
@@ -103,7 +104,7 @@ class TestSeaAgent:
             ripple_content="test", ripple_energy=0.5, ripple_source="x",
         )
 
-        # 验证 system_prompt 中包含差异性提示
+        # 验证 system_prompt 中包含差异性提示 / Verify system_prompt contains diversity hint
         call_args = mock_llm.call_args
         system_prompt = call_args.kwargs.get(
             "system_prompt", call_args.args[0] if call_args.args else ""
@@ -113,7 +114,7 @@ class TestSeaAgent:
 
     @pytest.mark.asyncio
     async def test_default_behavior_anchor_in_prompt(self):
-        """Sea prompt should anchor default behavior as absorb, not amplify."""
+        """Sea prompt 应将默认行为锚定为 absorb 而非 amplify。 / Sea prompt should anchor default as absorb, not amplify."""
         calls = []
 
         async def tracking_caller(*, system_prompt="", user_prompt=""):

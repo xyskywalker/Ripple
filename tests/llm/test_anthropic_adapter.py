@@ -1,10 +1,10 @@
 # test_anthropic_adapter.py
 # =============================================================================
-# AnthropicAdapter 单元测试
-# - URL 默认值与补全
-# - 请求格式（system / messages / headers）
-# - 响应解析
-# - from_endpoint_config 工厂方法
+# AnthropicAdapter 单元测试 / AnthropicAdapter unit tests
+# - URL 默认值与补全 / URL defaults & completion
+# - 请求格式（system / messages / headers） / Request format
+# - 响应解析 / Response parsing
+# - from_endpoint_config 工厂方法 / Factory method
 # =============================================================================
 
 import pytest
@@ -13,7 +13,7 @@ from ripple.llm.anthropic_adapter import AnthropicAdapter
 
 
 class TestResolveEndpoint:
-    """URL 解析测试。"""
+    """URL 解析测试。 / URL resolution tests."""
 
     def test_uses_default_url_when_none(self):
         result = AnthropicAdapter._resolve_endpoint(None)
@@ -42,7 +42,7 @@ class TestResolveEndpoint:
 
 
 class TestBuildRequest:
-    """请求构建测试。"""
+    """请求构建测试。 / Request building tests."""
 
     def test_includes_system_and_user(self):
         adapter = AnthropicAdapter(
@@ -75,7 +75,7 @@ class TestBuildRequest:
 
 
 class TestExtractText:
-    """响应解析测试。"""
+    """响应解析测试。 / Response parsing tests."""
 
     def test_extracts_from_standard_response(self):
         data = {
@@ -102,7 +102,7 @@ class TestExtractText:
 
 
 class TestFromEndpointConfig:
-    """工厂方法测试。"""
+    """工厂方法测试。 / Factory method tests."""
 
     def test_raises_without_api_key(self):
         class FakeConfig:

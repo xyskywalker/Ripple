@@ -1,4 +1,5 @@
 # tests/api/test_simulate.py
+# 平台画像注入测试 / Platform profile injection tests
 import pytest
 from pathlib import Path
 from ripple.skills.manager import SkillManager
@@ -6,7 +7,7 @@ from ripple.skills.manager import SkillManager
 
 class TestPlatformProfileInjection:
     def test_loaded_skill_contains_platform_profile(self, tmp_path):
-        """simulate() should combine domain_profile + platform_profile."""
+        """simulate() 应合并 domain_profile 和 platform_profile。 / simulate() should combine domain_profile + platform_profile."""
         skill_dir = tmp_path / "skills" / "test-skill"
         skill_dir.mkdir(parents=True)
 
@@ -30,7 +31,7 @@ class TestPlatformProfileInjection:
         manager = SkillManager(search_paths=[tmp_path / "skills"])
         loaded_skill = manager.load("test-skill")
 
-        # Simulate what simulate() should do
+        # 模拟 simulate() 的行为 / Simulate what simulate() should do
         platform = "xiaohongshu"
         skill_profile = loaded_skill.domain_profile
         if platform and platform in loaded_skill.platform_profiles:
@@ -40,7 +41,7 @@ class TestPlatformProfileInjection:
         assert "小红书平台画像" in skill_profile
 
     def test_missing_platform_falls_back_to_domain_only(self, tmp_path):
-        """Missing platform should use domain_profile only, no crash."""
+        """缺少平台时应仅使用 domain_profile，不崩溃。 / Missing platform uses domain_profile only, no crash."""
         skill_dir = tmp_path / "skills" / "test-skill"
         skill_dir.mkdir(parents=True)
 

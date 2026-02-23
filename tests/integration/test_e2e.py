@@ -1,6 +1,8 @@
 """端到端集成测试：模拟一条小红书笔记的传播。
+/ E2E integration test: simulate propagation of a Xiaohongshu note.
 
 使用 mock LLM，验证完整的 5-Phase 流程。
+Uses mock LLM to verify the full 5-Phase pipeline.
 """
 import pytest
 import json
@@ -12,19 +14,20 @@ class TestE2ESimulation:
     @pytest.mark.asyncio
     async def test_xiaohongshu_note_propagation(self):
         """模拟一条小红书美妆笔记的传播过程。
+        / Simulate propagation of a Xiaohongshu beauty note.
 
-        预期流程：
-        1. INIT: 全视者初始化 1 star + 2 sea
-        2. SEED: 种子涟漪注入
-        3. RIPPLE wave 0: sea_young_women 被激活（兴趣匹配）→ amplify
-        4. RIPPLE wave 1: sea_students 被激活（破圈）→ mutate
-        5. RIPPLE wave 2: star_kol 被激活（话题已成趋势）→ amplify
-        6. RIPPLE wave 3: 全视者终止
-        7. OBSERVE: 检测到破圈涌现
+        预期流程 / Expected flow：
+        1. INIT: 全视者初始化 1 star + 2 sea / Omniscient inits 1 star + 2 sea
+        2. SEED: 种子涟漪注入 / Seed ripple injection
+        3. RIPPLE wave 0: sea_young_women amplify
+        4. RIPPLE wave 1: sea_students mutate (破圈 / cross-circle)
+        5. RIPPLE wave 2: star_kol amplify
+        6. RIPPLE wave 3: 终止 / terminate
+        7. OBSERVE: 检测破圈涌现 / Detect cross-circle emergence
         8. FEEDBACK & RECORD
         """
 
-        # 准备所有 mock 响应 — INIT 拆分为 3 次 sub-call
+        # 准备所有 mock 响应 — INIT 拆分为 3 次 sub-call / Prepare all mock responses — INIT split into 3 sub-calls
         init_dynamics = json.dumps({
             "wave_time_window": "4h",
             "wave_time_window_reasoning": "小红书内容在4-6小时内决定命运",
@@ -65,7 +68,7 @@ class TestE2ESimulation:
         })
 
         wave_responses = [
-            # Wave 0: 激活 sea_young_women
+            # Wave 0: 激活 sea_young_women / Activate sea_young_women
             json.dumps({
                 "wave_number": 0,
                 "simulated_time_elapsed": "4h",
@@ -84,7 +87,7 @@ class TestE2ESimulation:
                 ],
                 "global_observation": "内容在美妆爱好者中引发关注",
             }),
-            # Wave 1: 激活 sea_students（破圈）
+            # Wave 1: 激活 sea_students（破圈） / Activate sea_students (cross-circle)
             json.dumps({
                 "wave_number": 1,
                 "simulated_time_elapsed": "8h",
@@ -101,7 +104,7 @@ class TestE2ESimulation:
                 ],
                 "global_observation": "开始出现破圈迹象，讨论从纯美妆扩展到消费观",
             }),
-            # Wave 2: 激活 star_kol
+            # Wave 2: 激活 star_kol / Activate star_kol
             json.dumps({
                 "wave_number": 2,
                 "simulated_time_elapsed": "12h",
@@ -115,7 +118,7 @@ class TestE2ESimulation:
                 "skipped_agents": [],
                 "global_observation": "KOL参与将进一步放大传播",
             }),
-            # Wave 3: 终止
+            # Wave 3: 终止 / Terminate
             json.dumps({
                 "wave_number": 3,
                 "simulated_time_elapsed": "16h",
@@ -170,7 +173,7 @@ class TestE2ESimulation:
         ]
         omniscient_caller = AsyncMock(side_effect=omniscient_responses)
 
-        # Agent 响应
+        # Agent 响应 / Agent responses
         agent_responses = {
             "sea_young_women": json.dumps({
                 "response_type": "amplify",
@@ -197,7 +200,7 @@ class TestE2ESimulation:
         call_count = {"n": 0}
 
         async def agent_caller(**kwargs):
-            # 按调用顺序返回不同 Agent 的响应
+            # 按调用顺序返回不同 Agent 的响应 / Return different agent responses by call order
             call_count["n"] += 1
             if call_count["n"] == 1:
                 return agent_responses["sea_young_women"]
@@ -219,7 +222,7 @@ class TestE2ESimulation:
             "source": {"description": "小红书美妆博主，3万粉丝"},
         })
 
-        # 验证完整结果
+        # 验证完整结果 / Verify complete results
         assert result["total_waves"] == 3  # Wave 0, 1, 2 有效
         assert result["wave_records_count"] == 3
         assert "prediction" in result

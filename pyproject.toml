@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ripple"
-version = "0.1.0"
+version = "0.2.0"
 description = "Ripple: Agent-Native CAS 人类社会行为预测引擎"
 requires-python = ">=3.11"
 dependencies = [

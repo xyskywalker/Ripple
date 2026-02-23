@@ -1,10 +1,10 @@
 # test_bedrock_adapter.py
 # =============================================================================
-# BedrockAdapter 单元测试
-# - 导入守卫（boto3 缺失时的行为）
-# - 请求构建（Anthropic vs Amazon 格式）
-# - 响应解析
-# - from_endpoint_config 工厂方法
+# BedrockAdapter 单元测试 / BedrockAdapter unit tests
+# - 导入守卫（boto3 缺失时的行为） / Import guard (boto3 missing behavior)
+# - 请求构建（Anthropic vs Amazon 格式） / Request building (Anthropic vs Amazon)
+# - 响应解析 / Response parsing
+# - from_endpoint_config 工厂方法 / Factory method
 # =============================================================================
 
 import pytest
@@ -12,26 +12,26 @@ from unittest.mock import MagicMock, patch
 
 
 class TestImportGuard:
-    """boto3 导入守卫测试。"""
+    """boto3 导入守卫测试。 / boto3 import guard tests."""
 
     def test_module_imports_without_boto3(self):
-        """即使 boto3 不可用，模块本身应能正常导入。"""
+        """即使 boto3 不可用，模块本身应能正常导入。 / Module should import even without boto3."""
         from ripple.llm import bedrock_adapter
         assert hasattr(bedrock_adapter, "BedrockAdapter")
 
     @patch("ripple.llm.bedrock_adapter._HAS_BOTO3", False)
     def test_raises_import_error_without_boto3(self):
-        """实例化时如果 boto3 不可用，应抛出 ImportError。"""
+        """实例化时如果 boto3 不可用，应抛出 ImportError。 / Should raise ImportError without boto3."""
         from ripple.llm.bedrock_adapter import BedrockAdapter
         with pytest.raises(ImportError, match="boto3"):
             BedrockAdapter(model="anthropic.claude-sonnet-4-20250514-v1:0")
 
 
 class TestBuildRequest:
-    """请求构建测试（不需要真实 boto3 连接）。"""
+    """请求构建测试（不需要真实 boto3）。 / Request building tests (no real boto3)."""
 
     def _make_adapter(self, model: str = "anthropic.claude-sonnet-4-20250514-v1:0"):
-        """创建带有 mock boto3 client 的 adapter。"""
+        """创建带有 mock boto3 client 的 adapter。 / Create adapter with mock boto3 client."""
         from ripple.llm.bedrock_adapter import BedrockAdapter
 
         with patch("ripple.llm.bedrock_adapter._HAS_BOTO3", True), \
@@ -64,7 +64,7 @@ class TestBuildRequest:
 
 
 class TestExtractText:
-    """响应解析测试。"""
+    """响应解析测试。 / Response parsing tests."""
 
     def _make_adapter(self, model: str):
         from ripple.llm.bedrock_adapter import BedrockAdapter
@@ -92,7 +92,7 @@ class TestExtractText:
 
 
 class TestFromEndpointConfig:
-    """工厂方法测试。"""
+    """工厂方法测试。 / Factory method tests."""
 
     def test_creates_adapter_from_config(self):
         from ripple.llm.bedrock_adapter import BedrockAdapter
@@ -115,7 +115,7 @@ class TestFromEndpointConfig:
             assert adapter._temperature == 0.5
             assert adapter._max_tokens == 2048
 
-            # 验证 boto3.Session 收到正确的参数
+            # 验证 boto3.Session 收到正确的参数 / Verify boto3.Session received correct args
             mock_boto3.Session.assert_called_once_with(
                 profile_name="dev", region_name="us-east-1"
             )

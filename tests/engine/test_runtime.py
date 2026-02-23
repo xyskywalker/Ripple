@@ -1,4 +1,5 @@
 # tests/engine/test_runtime.py
+# 引擎运行时测试 / Engine runtime tests
 import math
 import pytest
 import json
@@ -29,9 +30,10 @@ class TestParseHours:
 class TestRuntimeInit:
     @pytest.mark.asyncio
     async def test_full_simulation_lifecycle(self):
-        """完整模拟生命周期：INIT(3 sub-calls) → SEED → RIPPLE(2 waves) → OBSERVE → RECORD"""
+        """完整模拟生命周期：INIT(3) → SEED → RIPPLE(2) → OBSERVE → RECORD。
+        / Full simulation lifecycle: INIT(3 sub-calls) → SEED → RIPPLE(2 waves) → OBSERVE → RECORD."""
 
-        # Mock 全视者 INIT sub-call 1: dynamics
+        # Mock 全视者 INIT sub-call 1: dynamics / Mock Omniscient INIT sub-call 1: dynamics
         init_dynamics = json.dumps({
             "wave_time_window": "2h",
             "wave_time_window_reasoning": "测试推理",
@@ -39,7 +41,7 @@ class TestRuntimeInit:
             "platform_characteristics": "测试平台",
         })
 
-        # Mock 全视者 INIT sub-call 2: agents
+        # Mock 全视者 INIT sub-call 2: agents / Mock Omniscient INIT sub-call 2: agents
         init_agents = json.dumps({
             "star_configs": [
                 {"id": "star_1", "description": "KOL", "influence_level": "high"}
@@ -49,7 +51,7 @@ class TestRuntimeInit:
             ],
         })
 
-        # Mock 全视者 INIT sub-call 3: topology
+        # Mock 全视者 INIT sub-call 3: topology / Mock Omniscient INIT sub-call 3: topology
         init_topology = json.dumps({
             "topology": {
                 "edges": [{"from": "star_1", "to": "sea_1", "weight": 0.7}]
@@ -57,7 +59,7 @@ class TestRuntimeInit:
             "seed_ripple": {"content": "测试内容", "initial_energy": 0.6},
         })
 
-        # Mock 全视者 RIPPLE Wave 1: 激活 sea_1
+        # Mock 全视者 RIPPLE Wave 1: 激活 sea_1 / Mock Omniscient RIPPLE Wave 1: activate sea_1
         wave1_response = json.dumps({
             "wave_number": 0,
             "simulated_time_elapsed": "2h",
@@ -71,7 +73,7 @@ class TestRuntimeInit:
             "global_observation": "初始传播",
         })
 
-        # Mock 全视者 RIPPLE Wave 2: 终止
+        # Mock 全视者 RIPPLE Wave 2: 终止 / Mock Omniscient RIPPLE Wave 2: terminate
         wave2_response = json.dumps({
             "wave_number": 1,
             "simulated_time_elapsed": "4h",
@@ -83,7 +85,7 @@ class TestRuntimeInit:
             "global_observation": "传播终止",
         })
 
-        # Mock 全视者 OBSERVE
+        # Mock 全视者 OBSERVE / Mock Omniscient OBSERVE
         observe_response = json.dumps({
             "phase_vector": {"heat": "growth", "sentiment": "unified",
                              "coherence": "ordered"},
@@ -92,7 +94,7 @@ class TestRuntimeInit:
             "topology_recommendations": [],
         })
 
-        # Mock 全视者 synthesize
+        # Mock 全视者 synthesize / Mock Omniscient synthesize
         synth_response = json.dumps({
             "prediction": {"impact": "medium"},
             "timeline": [],
@@ -100,7 +102,7 @@ class TestRuntimeInit:
             "agent_insights": {},
         })
 
-        # Mock 海 Agent 响应
+        # Mock 海 Agent 响应 / Mock SeaAgent response
         sea_response = json.dumps({
             "response_type": "amplify",
             "cluster_reaction": "积极传播",
@@ -109,7 +111,7 @@ class TestRuntimeInit:
             "reasoning": "兴趣匹配",
         })
 
-        # 按调用顺序排列所有 mock 响应
+        # 按调用顺序排列所有 mock 响应 / All mock responses in call order
         omniscient_caller = AsyncMock(side_effect=[
             init_dynamics,      # INIT:dynamics
             init_agents,        # INIT:agents
@@ -133,15 +135,15 @@ class TestRuntimeInit:
             "simulation_horizon": "6h",
         })
 
-        # 验证结果结构
+        # 验证结果结构 / Verify result structure
         assert "prediction" in result
-        assert result["total_waves"] == 1  # 1 个有效 wave（wave 0）
+        assert result["total_waves"] == 1  # 1 个有效 wave / 1 effective wave (wave 0)
         assert omniscient_caller.call_count == 7  # 3 INIT + 2 RIPPLE + 1 OBSERVE + 1 SYNTH
-        assert agent_caller.call_count >= 1  # sea_1 被调用
+        assert agent_caller.call_count >= 1  # sea_1 被调用 / sea_1 was called
 
     @pytest.mark.asyncio
     async def test_deterministic_wave_calculation(self):
-        """确定性 wave 计算: ceil(48h / 4h) = 12。"""
+        """确定性 wave 计算: ceil(48h / 4h) = 12。 / Deterministic wave calculation: ceil(48/4) = 12."""
 
         init_dynamics = json.dumps({
             "wave_time_window": "4h",
@@ -220,8 +222,8 @@ class TestRuntimeInit:
 class TestRuntimeSafetyGuards:
     @pytest.mark.asyncio
     async def test_max_waves_safety_cutoff(self):
-        """超过安全上限时应强制终止。"""
-        # 全视者总是返回 continue=True
+        """超过安全上限时应强制终止。 / Should force terminate when exceeding safety limit."""
+        # 全视者总是返回 continue=True / Omniscient always returns continue=True
         always_continue = json.dumps({
             "wave_number": 0,
             "simulated_time_elapsed": "1h",
@@ -282,15 +284,15 @@ class TestRuntimeSafetyGuards:
             "simulation_horizon": "2h",
         })
 
-        # 应在安全上限处终止，不是无限循环
+        # 应在安全上限处终止 / Should terminate at safety limit, not loop forever
         assert result["total_waves"] <= 6
 
 
 class TestBuildSnapshot:
     @pytest.mark.asyncio
     async def test_snapshot_includes_agent_activation_stats(self):
-        """Snapshot should include activation_count, last_wave, last_energy,
-        last_response, total_outgoing_energy for each agent."""
+        """快照应包含每个 Agent 的激活统计信息。
+        / Snapshot should include activation_count, last_wave, last_energy, etc. per agent."""
         from ripple.primitives.models import (
             OmniscientVerdict, AgentActivation, WaveRecord,
         )
@@ -322,7 +324,7 @@ class TestBuildSnapshot:
         runtime._seed_content = "test"
         runtime._seed_energy = 0.6
 
-        # Simulate 2 wave records
+        # 模拟 2 轮 wave 记录 / Simulate 2 wave records
         runtime._wave_records = [
             WaveRecord(
                 wave_number=0,
@@ -405,7 +407,7 @@ class TestBuildSnapshot:
 
     @pytest.mark.asyncio
     async def test_snapshot_never_activated_agent(self):
-        """Agent that was never activated should have zero stats."""
+        """未被激活的 Agent 应有零值统计。 / Agent never activated should have zero stats."""
         from ripple.agents.star import StarAgent
 
         omniscient_caller = AsyncMock()
@@ -439,7 +441,7 @@ class TestBuildSnapshot:
 
     @pytest.mark.asyncio
     async def test_snapshot_includes_energy_decay(self):
-        """Snapshot should include energy_decay_per_wave from INIT dynamics."""
+        """快照应包含 INIT 动态参数中的 energy_decay_per_wave。 / Snapshot should include energy_decay_per_wave from INIT."""
         init_dynamics = json.dumps({
             "wave_time_window": "4h",
             "wave_time_window_reasoning": "test",
@@ -512,7 +514,7 @@ class TestBuildHistoryWithWindow:
         return runtime
 
     def _make_record(self, wave_number, agents_data):
-        """Helper: create a WaveRecord with given agent activations/responses."""
+        """辅助方法：创建含指定 Agent 激活/响应的 WaveRecord。 / Helper: create WaveRecord with given agent activations/responses."""
         from ripple.primitives.models import (
             OmniscientVerdict, AgentActivation, WaveRecord,
         )
@@ -547,7 +549,7 @@ class TestBuildHistoryWithWindow:
         )
 
     def test_all_detailed_within_window(self):
-        """When wave_records <= window_size, all entries are detailed."""
+        """wave_records <= 窗口大小时，所有条目为详细模式。 / All entries detailed when wave_records <= window_size."""
         runtime = self._make_runtime()
         runtime._wave_records = [
             self._make_record(0, {
@@ -570,7 +572,7 @@ class TestBuildHistoryWithWindow:
         assert "sea_1" in result
 
     def test_old_waves_compressed(self):
-        """Waves beyond window should be compressed into summary."""
+        """超出窗口的 wave 应被压缩为摘要。 / Waves beyond window should be compressed into summary."""
         runtime = self._make_runtime()
         records = []
         for i in range(8):
@@ -589,7 +591,7 @@ class TestBuildHistoryWithWindow:
         assert "star_1" in result
 
     def test_empty_records(self):
-        """No wave records should return only seed line."""
+        """无 wave 记录时应仅返回种子行。 / No wave records should return only seed line."""
         runtime = self._make_runtime()
         runtime._wave_records = []
 
@@ -600,12 +602,14 @@ class TestBuildHistoryWithWindow:
 class TestCASIntegration:
     @pytest.mark.asyncio
     async def test_enriched_snapshot_reaches_verdict_prompt(self):
-        """After wave 0, wave 1's verdict prompt should contain
-        agent activation stats from wave 0."""
+        """Wave 0 后，Wave 1 的裁决 prompt 应含 Wave 0 的 Agent 统计。
+        / After wave 0, wave 1's verdict prompt should contain agent activation stats from wave 0."""
         prompts = []
+        sys_prompts = []
 
         async def omniscient_caller(*, system_prompt="", user_prompt=""):
             prompts.append(user_prompt)
+            sys_prompts.append(system_prompt)
             idx = len(prompts)
             if idx == 1:
                 return json.dumps({
@@ -686,16 +690,18 @@ class TestCASIntegration:
         })
 
         # prompts[4] is wave 1 verdict prompt (after wave 0 completed)
-        # It should contain star_1's activation stats
+        # It should contain star_1's activation stats in user_prompt
         wave1_prompt = prompts[4]
         assert "已激活1次" in wave1_prompt
-        assert "累积叠加" in wave1_prompt
+        # v4: CAS principles are in system_prompt, not user_prompt
+        wave1_sys = sys_prompts[4]
+        assert "累积叠加" in wave1_sys
 
 
 class TestWave0SeaGuard:
     @pytest.mark.asyncio
     async def test_wave0_injects_sea_when_verdict_has_none(self):
-        """Wave 0 should auto-inject a Sea if verdict only activates Stars."""
+        """Wave 0 裁决仅激活 Star 时应自动注入 Sea。 / Wave 0 should auto-inject Sea if verdict only activates Stars."""
         # INIT: 3 sub-calls
         init_dynamics = json.dumps({
             "wave_time_window": "2h",
@@ -795,7 +801,7 @@ class TestWave0SeaGuard:
 
     @pytest.mark.asyncio
     async def test_wave0_no_injection_when_sea_already_activated(self):
-        """Wave 0 should NOT inject Sea if verdict already includes one."""
+        """Wave 0 裁决已包含 Sea 时不应重复注入。 / Wave 0 should NOT inject Sea if verdict already includes one."""
         init_dynamics = json.dumps({
             "wave_time_window": "2h",
             "wave_time_window_reasoning": "test",
@@ -885,7 +891,7 @@ class TestWave0SeaGuard:
 class TestObservationInResult:
     @pytest.mark.asyncio
     async def test_result_contains_observation(self):
-        """Final result should include observation with phase_vector."""
+        """最终结果应包含含 phase_vector 的 observation。 / Final result should include observation with phase_vector."""
         call_count = 0
 
         async def mock_omniscient(*, system_prompt="", user_prompt=""):
