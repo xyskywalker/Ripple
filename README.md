@@ -702,19 +702,6 @@ docs/                        # 📚 设计文档
 
 ## 📚 文档索引
 
-### 设计文档
-
-| 文档 | 说明 |
-|------|------|
-| [`2026-02-15-ripple-omniscient-architecture-design.md`](docs/plans/2026-02-15-ripple-omniscient-architecture-design.md) | 全视者中心制架构设计 |
-| [`2026-02-15-ripple-implementation-plan.md`](docs/plans/2026-02-15-ripple-implementation-plan.md) | 核心实施计划 |
-| [`2026-02-16-cas-accumulative-activation-design.md`](docs/plans/2026-02-16-cas-accumulative-activation-design.md) | CAS 累积激活机制设计 |
-| [`2026-02-16-platform-profile-injection-design.md`](docs/plans/2026-02-16-platform-profile-injection-design.md) | 平台画像注入设计 |
-| [`2026-02-16-prediction-optimization-design.md`](docs/plans/2026-02-16-prediction-optimization-design.md) | 预测优化设计 |
-| [`2026-02-18-pmf-validation-design.md`](docs/plans/2026-02-18-pmf-validation-design.md) | PMF 验证架构设计 |
-| [`2026-02-22-pmf-skill-optimization-design.md`](docs/plans/2026-02-22-pmf-skill-optimization-design.md) | PMF Skill 深度优化设计（渠道/垂类/反乐观偏误） |
-| [`2026-02-22-social-media-tribunal-design.md`](docs/plans/2026-02-22-social-media-tribunal-design.md) | 社交媒体合议庭设计 |
-
 ### 论文阅读笔记
 
 | 文档 | 说明 |

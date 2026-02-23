@@ -711,19 +711,6 @@ docs/                        # 📚 Design documents
 
 ## 📚 Document Index
 
-### Design Documents
-
-| Document | Description |
-|----------|-------------|
-| [`2026-02-15-ripple-omniscient-architecture-design.md`](docs/plans/2026-02-15-ripple-omniscient-architecture-design.md) | Omniscient-centric architecture design |
-| [`2026-02-15-ripple-implementation-plan.md`](docs/plans/2026-02-15-ripple-implementation-plan.md) | Core implementation plan |
-| [`2026-02-16-cas-accumulative-activation-design.md`](docs/plans/2026-02-16-cas-accumulative-activation-design.md) | CAS accumulative activation mechanism design |
-| [`2026-02-16-platform-profile-injection-design.md`](docs/plans/2026-02-16-platform-profile-injection-design.md) | Platform profile injection design |
-| [`2026-02-16-prediction-optimization-design.md`](docs/plans/2026-02-16-prediction-optimization-design.md) | Prediction optimization design |
-| [`2026-02-18-pmf-validation-design.md`](docs/plans/2026-02-18-pmf-validation-design.md) | PMF validation architecture design |
-| [`2026-02-22-pmf-skill-optimization-design.md`](docs/plans/2026-02-22-pmf-skill-optimization-design.md) | PMF Skill deep optimization (channels/verticals/anti-optimism-bias) |
-| [`2026-02-22-social-media-tribunal-design.md`](docs/plans/2026-02-22-social-media-tribunal-design.md) | Social media Tribunal design |
-
 ### Paper Review Notes
 
 | Document | Description |
