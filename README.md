@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <a href="README.md">中文</a> | <a href="README_EN.md">English</a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/version-0.2.0-green" alt="Version">
   <img src="https://img.shields.io/badge/tests-227%20passed-brightgreen" alt="Tests">
