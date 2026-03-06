@@ -200,16 +200,125 @@ Ripple 的四体智能体架构是理解整个系统的关键：
 
 ## 🚀 快速开始
 
-### 环境要求
+### 推荐：Docker 启动方式（仅需 Docker）
+
+无需本地 Python/pip 依赖。服务以 HTTP+SSE 方式对外提供接口。
+
+#### 方式1：启动时传入默认 LLM 参数
+
+启动后，`POST /v1/simulations` 可不再传 `llm_config`。
+
+**A) API Key 明文写死**
+
+```bash
+docker run -d --name ripple-service \
+  -p 127.0.0.1:8080:8080 \
+  -e RIPPLE_API_TOKEN=your-service-token \
+  -e RIPPLE_LLM_MODEL_PLATFORM=openai \
+  -e RIPPLE_LLM_MODEL_NAME=gpt-5.2 \
+  -e RIPPLE_LLM_API_KEY=sk-xxx \
+  -e RIPPLE_LLM_URL=https://api.openai.com/v1 \
+  -e RIPPLE_LLM_API_MODE=chat_completions \
+  -v ripple-service-data:/data \
+  xyplusxy/ripple:v0.2.0
+```
+
+**B) 引用环境变量**
+
+```bash
+export OPENAI_API_KEY=sk-xxx
+
+docker run -d --name ripple-service \
+  -p 127.0.0.1:8080:8080 \
+  -e RIPPLE_API_TOKEN=your-service-token \
+  -e RIPPLE_LLM_MODEL_PLATFORM=openai \
+  -e RIPPLE_LLM_MODEL_NAME=gpt-5.2 \
+  -e RIPPLE_LLM_API_KEY="$OPENAI_API_KEY" \
+  -e RIPPLE_LLM_URL=https://api.openai.com/v1 \
+  -e RIPPLE_LLM_API_MODE=chat_completions \
+  -v ripple-service-data:/data \
+  xyplusxy/ripple:v0.2.0
+```
+
+**方式1：HTTP+SSE 调用示例**
+
+```bash
+BASE_URL=http://127.0.0.1:8080
+RIPPLE_API_TOKEN=your-service-token
+
+# 1) 创建任务
+curl -sS -X POST "$BASE_URL/v1/simulations" \
+  -H "Authorization: Bearer $RIPPLE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "skill":"pmf-validation",
+    "event":{"name":"demo","description":"startup default llm"}
+  }'
+
+# 2) 订阅事件（SSE）
+curl -N "$BASE_URL/v1/simulations/<JOB_ID>/events" \
+  -H "Authorization: Bearer $RIPPLE_API_TOKEN"
+
+# 3) 查询状态
+curl -sS "$BASE_URL/v1/simulations/<JOB_ID>" \
+  -H "Authorization: Bearer $RIPPLE_API_TOKEN"
+```
+
+#### 方式2：启动时不传 LLM 参数（每次调用时传 llm_config）
+
+```bash
+docker run -d --name ripple-service \
+  -p 127.0.0.1:8080:8080 \
+  -e RIPPLE_API_TOKEN=your-service-token \
+  -v ripple-service-data:/data \
+  xyplusxy/ripple:v0.2.0
+```
+
+**方式2：HTTP+SSE 调用示例**
+
+```bash
+BASE_URL=http://127.0.0.1:8080
+RIPPLE_API_TOKEN=your-service-token
+
+# 1) 创建任务（请求内传 llm_config）
+curl -sS -X POST "$BASE_URL/v1/simulations" \
+  -H "Authorization: Bearer $RIPPLE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "skill":"pmf-validation",
+    "event":{"name":"demo","description":"api-level llm config"},
+    "llm_config":{
+      "_default":{
+        "model_platform":"openai",
+        "model_name":"gpt-5.2",
+        "api_key":"sk-xxx",
+        "url":"https://api.openai.com/v1",
+        "api_mode":"chat_completions"
+      }
+    }
+  }'
+
+# 2) 订阅事件（SSE）
+curl -N "$BASE_URL/v1/simulations/<JOB_ID>/events" \
+  -H "Authorization: Bearer $RIPPLE_API_TOKEN"
+
+# 3) 查询状态
+curl -sS "$BASE_URL/v1/simulations/<JOB_ID>" \
+  -H "Authorization: Bearer $RIPPLE_API_TOKEN"
+```
+
+### 手工安装（非 Docker）
+
+#### 环境要求
 
 - Python 3.11+
 - pip
 
-### 安装
+#### 安装
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-org/Ripple.git
+git clone https://github.com/xyskywalker/Ripple.git
 cd Ripple
 
 # 安装核心依赖
@@ -222,7 +331,7 @@ pip install -e ".[dev]"
 pip install -e ".[bedrock]"
 ```
 
-### 配置 LLM
+#### 配置 LLM
 
 ```bash
 # 复制配置模板

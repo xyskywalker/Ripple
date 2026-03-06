@@ -205,16 +205,125 @@ The Omniscient-driven 5-Phase Wave execution cycle, with an optional DELIBERATE 
 
 ## 🚀 Quick Start
 
-### Requirements
+### Recommended: Docker Startup (Docker only)
+
+No local Python/pip dependencies are required. The service is exposed via HTTP+SSE.
+
+#### Mode 1: Pass Default LLM at Startup
+
+After startup, `POST /v1/simulations` can omit `llm_config`.
+
+**A) Hardcode API Key (plaintext)**
+
+```bash
+docker run -d --name ripple-service \
+  -p 127.0.0.1:8080:8080 \
+  -e RIPPLE_API_TOKEN=your-service-token \
+  -e RIPPLE_LLM_MODEL_PLATFORM=openai \
+  -e RIPPLE_LLM_MODEL_NAME=gpt-5.2 \
+  -e RIPPLE_LLM_API_KEY=sk-xxx \
+  -e RIPPLE_LLM_URL=https://api.openai.com/v1 \
+  -e RIPPLE_LLM_API_MODE=chat_completions \
+  -v ripple-service-data:/data \
+  xyplusxy/ripple:v0.2.0
+```
+
+**B) Reference Host Environment Variable**
+
+```bash
+export OPENAI_API_KEY=sk-xxx
+
+docker run -d --name ripple-service \
+  -p 127.0.0.1:8080:8080 \
+  -e RIPPLE_API_TOKEN=your-service-token \
+  -e RIPPLE_LLM_MODEL_PLATFORM=openai \
+  -e RIPPLE_LLM_MODEL_NAME=gpt-5.2 \
+  -e RIPPLE_LLM_API_KEY="$OPENAI_API_KEY" \
+  -e RIPPLE_LLM_URL=https://api.openai.com/v1 \
+  -e RIPPLE_LLM_API_MODE=chat_completions \
+  -v ripple-service-data:/data \
+  xyplusxy/ripple:v0.2.0
+```
+
+**Mode 1: HTTP+SSE Call Sample**
+
+```bash
+BASE_URL=http://127.0.0.1:8080
+RIPPLE_API_TOKEN=your-service-token
+
+# 1) Create job
+curl -sS -X POST "$BASE_URL/v1/simulations" \
+  -H "Authorization: Bearer $RIPPLE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "skill":"pmf-validation",
+    "event":{"name":"demo","description":"startup default llm"}
+  }'
+
+# 2) Stream events (SSE)
+curl -N "$BASE_URL/v1/simulations/<JOB_ID>/events" \
+  -H "Authorization: Bearer $RIPPLE_API_TOKEN"
+
+# 3) Get status
+curl -sS "$BASE_URL/v1/simulations/<JOB_ID>" \
+  -H "Authorization: Bearer $RIPPLE_API_TOKEN"
+```
+
+#### Mode 2: No LLM at Startup (Pass `llm_config` Per Request)
+
+```bash
+docker run -d --name ripple-service \
+  -p 127.0.0.1:8080:8080 \
+  -e RIPPLE_API_TOKEN=your-service-token \
+  -v ripple-service-data:/data \
+  xyplusxy/ripple:v0.2.0
+```
+
+**Mode 2: HTTP+SSE Call Sample**
+
+```bash
+BASE_URL=http://127.0.0.1:8080
+RIPPLE_API_TOKEN=your-service-token
+
+# 1) Create job (pass llm_config in request)
+curl -sS -X POST "$BASE_URL/v1/simulations" \
+  -H "Authorization: Bearer $RIPPLE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "skill":"pmf-validation",
+    "event":{"name":"demo","description":"api-level llm config"},
+    "llm_config":{
+      "_default":{
+        "model_platform":"openai",
+        "model_name":"gpt-5.2",
+        "api_key":"sk-xxx",
+        "url":"https://api.openai.com/v1",
+        "api_mode":"chat_completions"
+      }
+    }
+  }'
+
+# 2) Stream events (SSE)
+curl -N "$BASE_URL/v1/simulations/<JOB_ID>/events" \
+  -H "Authorization: Bearer $RIPPLE_API_TOKEN"
+
+# 3) Get status
+curl -sS "$BASE_URL/v1/simulations/<JOB_ID>" \
+  -H "Authorization: Bearer $RIPPLE_API_TOKEN"
+```
+
+### Manual Installation (Non-Docker)
+
+#### Requirements
 
 - Python 3.11+
 - pip
 
-### Installation
+#### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/Ripple.git
+git clone https://github.com/xyskywalker/Ripple.git
 cd Ripple
 
 # Install core dependencies
@@ -227,7 +336,7 @@ pip install -e ".[dev]"
 pip install -e ".[bedrock]"
 ```
 
-### Configure LLM
+#### Configure LLM
 
 ```bash
 # Copy the configuration template
