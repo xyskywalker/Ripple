@@ -1,0 +1,28 @@
+services:
+  ripple-service:
+    container_name: ripple-service
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    image: ripple-service:local
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      - RIPPLE_API_TOKEN=${RIPPLE_API_TOKEN:-change-me}
+      - RIPPLE_DB_PATH=/data/ripple_service.db
+      - RIPPLE_CANCEL_TTL_SECONDS=${RIPPLE_CANCEL_TTL_SECONDS:-60}
+    volumes:
+      - ../../llm_config.yaml:/app/llm_config.yaml:ro
+      - ../../data/ripple-service:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/healthz').status==200 else 1)"
+        ]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 10s

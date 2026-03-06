@@ -404,7 +404,13 @@ class SimulationRuntime:
                 f"estimated_total_waves = {estimated_waves}"
             )
 
-        max_waves = estimated_waves * SAFETY_WAVE_MULTIPLIER
+        safety_max_waves = estimated_waves * SAFETY_WAVE_MULTIPLIER
+        max_waves = safety_max_waves
+        requested_max_waves = simulation_input.get("max_waves")
+        if isinstance(requested_max_waves, (int, float)):
+            requested_max_waves = int(requested_max_waves)
+            if requested_max_waves > 0:
+                max_waves = min(safety_max_waves, requested_max_waves)
 
         # 存储以供快照和裁决调用使用 / Store for use in snapshot and verdict calls
         self._wave_time_window = wave_time_window
@@ -417,7 +423,8 @@ class SimulationRuntime:
             f"[{run_id}] INIT 完成: "
             f"Star×{len(init_result.get('star_configs', []))}, "
             f"Sea×{len(init_result.get('sea_configs', []))}, "
-            f"预估 {estimated_waves} waves (安全上限 {max_waves})"
+            f"预估 {estimated_waves} waves (安全上限 {safety_max_waves}, "
+            f"执行上限 {max_waves})"
         )
 
         # 增量记录：INIT 阶段结果 / Incremental record: INIT phase result

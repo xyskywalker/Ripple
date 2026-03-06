@@ -355,6 +355,7 @@ async def simulate(
         simulation_input["environment"] = environment
     if simulation_horizon:
         simulation_input["simulation_horizon"] = simulation_horizon
+    simulation_input["max_waves"] = max_waves
 
     # 9. 提前生成 run_id 和输出路径，创建增量记录器
     run_id = str(uuid.uuid4())[:8]

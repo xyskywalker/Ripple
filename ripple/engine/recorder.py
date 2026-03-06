@@ -87,7 +87,7 @@ class SimulationRecorder:
         self._data: Dict[str, Any] = {
             "meta": {
                 "run_id": run_id,
-                "engine_version": "0.2.0",
+                "engine_version": "0.1.0",
                 "start_time": self._start_datetime.isoformat(),
                 "end_time": None,
                 "elapsed_seconds": 0.0,

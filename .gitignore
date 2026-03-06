@@ -1,5 +1,15 @@
+# Claude Code files
+CLAUDE.md
+.claude/
+
+# Data files
+data/
+
 # macOS
 .DS_Store
+
+# .vscode
+.vscode/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -147,6 +157,15 @@ ENV/
 env.bak/
 venv.bak/
 
+# LLM 配置（包含 API Key 等敏感信息，不提交到版本控制）
+llm_config.yaml
+llm_config.yml
+config/llm_config.yaml
+config/llm_config.yml
+
+# 模拟输出（每次运行自动生成）
+ripple_outputs/
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -197,9 +216,6 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-# Claude
-.claude/
-
 # Cursor
 #  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to
 #  exclude from AI features like autocomplete and code analysis. Recommended for sensitive data
@@ -211,3 +227,4 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+.worktrees/

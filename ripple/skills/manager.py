@@ -12,7 +12,7 @@
 # SKILL.md 格式 / SKILL.md format:
 #   ---
 #   name: social-media
-#   version: "0.2.0"
+#   version: "0.1.0"
 #   description: ...
 #   prompts:
 #     omniscient: prompts/omniscient.md
@@ -322,7 +322,7 @@ class SkillManager:
 
         loaded = LoadedSkill(
             name=name,
-            version=frontmatter.get("version", "0.2.0"),
+            version=frontmatter.get("version", "0.1.0"),
             description=frontmatter.get("description", ""),
             path=skill_dir,
             prompts=prompts,
