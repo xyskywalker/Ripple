@@ -209,7 +209,14 @@ The Omniscient-driven 5-Phase Wave execution cycle, with an optional DELIBERATE 
 
 No local Python/pip dependencies are required. The service is exposed via HTTP+SSE.
 
-#### Mode 1: Pass Default LLM at Startup
+`RIPPLE_API_TOKEN` is optional:
+
+- If it is unset, empty, or only whitespace, all service endpoints skip authentication
+- If it is set to a non-empty value, all service endpoints require `Authorization: Bearer <token>`
+
+`deploy/docker/docker-compose.yml` now defaults to **auth disabled** as well; authentication is only enabled when you explicitly set `RIPPLE_API_TOKEN`.
+
+#### Mode 1: Pass Default LLM at Startup (auth enabled explicitly)
 
 After startup, `POST /v1/simulations` can omit `llm_config`.
 
@@ -245,7 +252,7 @@ docker run -d --name ripple-service \
   xyplusxy/ripple:v0.2.0
 ```
 
-**Mode 1: HTTP+SSE Call Sample**
+**Mode 1: HTTP+SSE Call Sample (auth enabled)**
 
 ```bash
 BASE_URL=http://127.0.0.1:8080
@@ -269,25 +276,24 @@ curl -sS "$BASE_URL/v1/simulations/<JOB_ID>" \
   -H "Authorization: Bearer $RIPPLE_API_TOKEN"
 ```
 
-#### Mode 2: No LLM at Startup (Pass `llm_config` Per Request)
+#### Mode 2: No LLM at Startup (pass `llm_config` per request, auth disabled by default)
 
 ```bash
 docker run -d --name ripple-service \
   -p 127.0.0.1:8080:8080 \
-  -e RIPPLE_API_TOKEN=your-service-token \
   -v ripple-service-data:/data \
   xyplusxy/ripple:v0.2.0
 ```
 
-**Mode 2: HTTP+SSE Call Sample**
+> If you want this mode to require auth too, add `-e RIPPLE_API_TOKEN=your-service-token`.
+
+**Mode 2: HTTP+SSE Call Sample (no auth)**
 
 ```bash
 BASE_URL=http://127.0.0.1:8080
-RIPPLE_API_TOKEN=your-service-token
 
 # 1) Create job (pass llm_config in request)
 curl -sS -X POST "$BASE_URL/v1/simulations" \
-  -H "Authorization: Bearer $RIPPLE_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "skill":"pmf-validation",
@@ -304,12 +310,10 @@ curl -sS -X POST "$BASE_URL/v1/simulations" \
   }'
 
 # 2) Stream events (SSE)
-curl -N "$BASE_URL/v1/simulations/<JOB_ID>/events" \
-  -H "Authorization: Bearer $RIPPLE_API_TOKEN"
+curl -N "$BASE_URL/v1/simulations/<JOB_ID>/events"
 
 # 3) Get status
-curl -sS "$BASE_URL/v1/simulations/<JOB_ID>" \
-  -H "Authorization: Bearer $RIPPLE_API_TOKEN"
+curl -sS "$BASE_URL/v1/simulations/<JOB_ID>"
 ```
 
 ### Manual Installation (Non-Docker)

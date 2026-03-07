@@ -204,7 +204,14 @@ Ripple 的四体智能体架构是理解整个系统的关键：
 
 无需本地 Python/pip 依赖。服务以 HTTP+SSE 方式对外提供接口。
 
-#### 方式1：启动时传入默认 LLM 参数
+`RIPPLE_API_TOKEN` 为可选参数：
+
+- 未设置、设为空字符串、或仅包含空白字符时：所有服务接口均不做身份验证
+- 设为非空值时：所有服务接口均要求 `Authorization: Bearer <token>`
+
+`deploy/docker/docker-compose.yml` 的默认行为也已改为**不启用鉴权**；只有显式设置 `RIPPLE_API_TOKEN` 时才开启鉴权。
+
+#### 方式1：启动时传入默认 LLM 参数（显式开启鉴权）
 
 启动后，`POST /v1/simulations` 可不再传 `llm_config`。
 
@@ -240,7 +247,7 @@ docker run -d --name ripple-service \
   xyplusxy/ripple:v0.2.0
 ```
 
-**方式1：HTTP+SSE 调用示例**
+**方式1：HTTP+SSE 调用示例（开启鉴权）**
 
 ```bash
 BASE_URL=http://127.0.0.1:8080
@@ -264,25 +271,24 @@ curl -sS "$BASE_URL/v1/simulations/<JOB_ID>" \
   -H "Authorization: Bearer $RIPPLE_API_TOKEN"
 ```
 
-#### 方式2：启动时不传 LLM 参数（每次调用时传 llm_config）
+#### 方式2：启动时不传 LLM 参数（每次调用时传 `llm_config`，默认不鉴权）
 
 ```bash
 docker run -d --name ripple-service \
   -p 127.0.0.1:8080:8080 \
-  -e RIPPLE_API_TOKEN=your-service-token \
   -v ripple-service-data:/data \
   xyplusxy/ripple:v0.2.0
 ```
 
-**方式2：HTTP+SSE 调用示例**
+> 如果你希望这一模式也启用鉴权，只需额外传入 `-e RIPPLE_API_TOKEN=your-service-token`。
+
+**方式2：HTTP+SSE 调用示例（不鉴权）**
 
 ```bash
 BASE_URL=http://127.0.0.1:8080
-RIPPLE_API_TOKEN=your-service-token
 
 # 1) 创建任务（请求内传 llm_config）
 curl -sS -X POST "$BASE_URL/v1/simulations" \
-  -H "Authorization: Bearer $RIPPLE_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "skill":"pmf-validation",
@@ -299,12 +305,10 @@ curl -sS -X POST "$BASE_URL/v1/simulations" \
   }'
 
 # 2) 订阅事件（SSE）
-curl -N "$BASE_URL/v1/simulations/<JOB_ID>/events" \
-  -H "Authorization: Bearer $RIPPLE_API_TOKEN"
+curl -N "$BASE_URL/v1/simulations/<JOB_ID>/events"
 
 # 3) 查询状态
-curl -sS "$BASE_URL/v1/simulations/<JOB_ID>" \
-  -H "Authorization: Bearer $RIPPLE_API_TOKEN"
+curl -sS "$BASE_URL/v1/simulations/<JOB_ID>"
 ```
 
 ### 手工安装（非 Docker）

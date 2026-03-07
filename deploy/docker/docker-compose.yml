@@ -8,7 +8,7 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     environment:
-      - RIPPLE_API_TOKEN=${RIPPLE_API_TOKEN:-change-me}
+      - RIPPLE_API_TOKEN=${RIPPLE_API_TOKEN:-}
       - RIPPLE_DB_PATH=/data/ripple_service.db
       - RIPPLE_CANCEL_TTL_SECONDS=${RIPPLE_CANCEL_TTL_SECONDS:-60}
     volumes:
