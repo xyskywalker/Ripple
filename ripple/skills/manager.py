@@ -12,7 +12,7 @@
 # SKILL.md 格式 / SKILL.md format:
 #   ---
 #   name: social-media
-#   version: "0.2.0"
+#   version: "..."
 #   description: ...
 #   prompts:
 #     omniscient: prompts/omniscient.md
@@ -31,6 +31,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
+
+from ripple.version import VERSION
 
 from ripple.skills.validator import (
     SkillValidationError,
@@ -322,7 +324,7 @@ class SkillManager:
 
         loaded = LoadedSkill(
             name=name,
-            version=frontmatter.get("version", "0.2.0"),
+            version=frontmatter.get("version", VERSION),
             description=frontmatter.get("description", ""),
             path=skill_dir,
             prompts=prompts,

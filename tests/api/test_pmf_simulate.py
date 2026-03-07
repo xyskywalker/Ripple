@@ -18,7 +18,7 @@ class TestSimulateChannelParam:
 
             mock_skill = MagicMock()
             mock_skill.name = "pmf-validation"
-            mock_skill.version = "0.1.0"
+            mock_skill.version = "fixture-version"
             mock_skill.domain_profile = "PMF profile"
             mock_skill.platform_profiles = {}
             mock_skill.channel_profiles = {"generic": "generic channel profile"}
@@ -194,7 +194,7 @@ class TestSocialMediaDeliberateRegistration:
 
             mock_skill = MagicMock()
             mock_skill.name = "social-media"
-            mock_skill.version = "0.2.0"
+            mock_skill.version = "fixture-version"
             mock_skill.domain_profile = "social media profile"
             mock_skill.platform_profiles = {}
             mock_skill.channel_profiles = {}
@@ -241,7 +241,7 @@ class TestSocialMediaDeliberateRegistration:
 
             mock_skill = MagicMock()
             mock_skill.name = "some-skill"
-            mock_skill.version = "0.1.0"
+            mock_skill.version = "fixture-version"
             mock_skill.domain_profile = "profile"
             mock_skill.platform_profiles = {}
             mock_skill.channel_profiles = {}

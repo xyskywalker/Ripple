@@ -18,7 +18,7 @@ def pmf_skill_dir(tmp_path):
     (skill_dir / "SKILL.md").write_text(textwrap.dedent("""\
         ---
         name: pmf-validation
-        version: "0.1.0"
+        version: "fixture-version"
         description: PMF validation engine
         prompts:
           omniscient: prompts/omniscient.md
@@ -75,7 +75,7 @@ class TestSkillManagerRubrics:
         (skill_dir / "SKILL.md").write_text(textwrap.dedent("""\
             ---
             name: basic-skill
-            version: "0.1.0"
+            version: "fixture-version"
             description: Basic skill
             prompts: {}
             ---
@@ -108,7 +108,7 @@ class TestSkillManagerVerticals:
         (skill_dir / "SKILL.md").write_text(textwrap.dedent("""\
             ---
             name: no-verticals
-            version: "0.1.0"
+            version: "fixture-version"
             description: Skill without verticals
             prompts: {}
             ---

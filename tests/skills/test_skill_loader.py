@@ -3,12 +3,21 @@
 
 """Skill 加载测试。 / Skill loading tests."""
 import pytest
+import yaml
 from pathlib import Path
 from ripple.skills.manager import SkillManager, LoadedSkill
 from ripple.skills.validator import SkillValidationError
+from ripple.version import get_version
 
 # Skill 目录路径 / Skill directory path
 SKILL_DIR = Path(__file__).parent.parent.parent / "skills" / "social-media"
+
+
+def _skill_file_version(skill_dir: Path) -> str:
+    text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+    _, frontmatter, _ = text.split("---", 2)
+    data = yaml.safe_load(frontmatter)
+    return str(data["version"])
 
 
 class TestSkillLoading:
@@ -25,7 +34,7 @@ class TestSkillLoading:
         manager = SkillManager()
         skill = manager.load("social-media", skill_path=SKILL_DIR)
         assert skill.name == "social-media"
-        assert skill.version == "0.2.0"
+        assert skill.version == _skill_file_version(SKILL_DIR)
 
     def test_prompts_loaded(self):
         """Prompt 模板加载（omniscient, star, sea）。 / Load prompt templates (omniscient, star, sea)."""
@@ -99,7 +108,7 @@ class TestSkillManager:
         (skill_dir / "SKILL.md").write_text(
             "---\n"
             "name: test-skill\n"
-            "version: 0.1.0\n"
+            "version: fixture-version\n"
             "description: test\n"
             "prompts:\n"
             "  omniscient: prompts/omniscient.md\n"
@@ -146,7 +155,7 @@ class TestSkillManager:
         skill = manager.load("minimal-skill")
 
         assert skill.name == "minimal-skill"
-        assert skill.version == "0.2.0"  # default
+        assert skill.version == get_version()  # default
         assert "star" in skill.prompts
         assert "sea" in skill.prompts
 
@@ -158,7 +167,7 @@ class TestSkillManager:
         (skill_dir / "SKILL.md").write_text(
             "---\n"
             "name: test-skill\n"
-            "version: 0.1.0\n"
+            "version: fixture-version\n"
             "description: test\n"
             "prompts:\n"
             "  omniscient: prompts/omniscient.md\n"
@@ -190,7 +199,7 @@ class TestPlatformProfileLoading:
         (skill_dir / "SKILL.md").write_text(
             "---\n"
             "name: test-skill\n"
-            "version: 0.1.0\n"
+            "version: fixture-version\n"
             "prompts:\n"
             "  star: prompts/star.md\n"
             "---\n"

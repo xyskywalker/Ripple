@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from ripple.primitives.models import OmniscientVerdict
+from ripple.version import VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ class SimulationRecorder:
         self._data: Dict[str, Any] = {
             "meta": {
                 "run_id": run_id,
-                "engine_version": "0.1.0",
+                "engine_version": VERSION,
                 "start_time": self._start_datetime.isoformat(),
                 "end_time": None,
                 "elapsed_seconds": 0.0,

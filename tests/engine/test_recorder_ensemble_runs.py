@@ -3,6 +3,7 @@
 import json
 
 from ripple.engine.recorder import SimulationRecorder
+from ripple.version import get_version
 from ripple.primitives.models import OmniscientVerdict
 
 
@@ -61,3 +62,11 @@ def test_recorder_ensemble_runs_are_isolated(tmp_path):
     assert len(runs[1]["process"]["waves"]) == 1
     assert runs[1]["process"]["waves"][0]["pre_snapshot"]["pre"] == 2
 
+
+def test_recorder_meta_engine_version_matches_runtime_version(tmp_path):
+    out = tmp_path / "version.json"
+    SimulationRecorder(output_path=out, run_id="rv")
+
+    data = json.loads(out.read_text(encoding="utf-8"))
+
+    assert data["meta"]["engine_version"] == get_version()
