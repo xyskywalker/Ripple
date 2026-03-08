@@ -11,11 +11,9 @@ if str(EXAMPLES_DIR) not in sys.path:
 import e2e_simulation_xiaohongshu_service as service_example
 
 
-def test_service_example_uses_single_data_mount_directory() -> None:
-    repo_root = Path(__file__).resolve().parents[2]
-
-    assert service_example.DEFAULT_ARTIFACTS_DIR == repo_root / "data" / "ripple-service" / "ripple_outputs"
-    assert service_example._CONTAINER_ARTIFACTS_DIR == "/data/ripple_outputs"
+def test_service_example_has_no_local_artifact_directory_dependency() -> None:
+    assert not hasattr(service_example, "DEFAULT_ARTIFACTS_DIR")
+    assert not hasattr(service_example, "_CONTAINER_ARTIFACTS_DIR")
 
 
 def test_service_example_does_not_override_service_output_path() -> None:

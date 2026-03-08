@@ -4,16 +4,13 @@
 #
 # Two modes: basic (topic only) / enhanced (topic + account + history)
 #
-# The service stores artifacts under `/data/ripple_outputs/`. When the container
-# mounts the host `data/ripple-service/` directory to `/data`, the JSON result
-# and compact Markdown log become available on the host under:
-#   data/ripple-service/ripple_outputs/
-#
-# This script is a pure HTTP client:
+# This script is a pure HTTP client and does not rely on any host/container
+# artifact mount mapping:
 #   1) create simulation job
 #   2) stream SSE progress
 #   3) poll final result
-#   4) call the service-side report endpoint
+#   4) fetch output-json + compact-log via service APIs
+#   5) call the service-side report endpoint
 #
 # Usage:
 #   python examples/e2e_simulation_xiaohongshu_service.py basic
@@ -28,23 +25,18 @@ import json
 import logging
 import os
 from contextlib import suppress
-from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Sequence
 
 import httpx
 
 from e2e_helpers import (
-    REPO_ROOT,
     build_event_from_topic,
     build_historical_from_posts,
     build_source_from_account,
     create_arg_parser,
     is_terminal_job_status,
-    print_compact_log,
     print_progress,
-    print_result_summary,
     progress_event_from_service_event,
-    result_from_service_job,
     setup_logging,
 )
 from e2e_xiaohongshu_common import (
@@ -69,8 +61,6 @@ DEFAULT_POLL_INTERVAL = 2.0
 DEFAULT_WAIT_TIMEOUT = 4500.0
 DEFAULT_REPORT_TIMEOUT = DEFAULT_WAIT_TIMEOUT
 DEFAULT_REPORT_MAX_LLM_CALLS = 10
-DEFAULT_ARTIFACTS_DIR = REPO_ROOT / "data" / "ripple-service" / "ripple_outputs"
-_CONTAINER_ARTIFACTS_DIR = "/data/ripple_outputs"
 _TERMINAL_SSE_TYPES = {"job.completed", "job.failed", "job.cancelled"}
 
 
@@ -239,40 +229,94 @@ async def _wait_for_terminal_job(
         await asyncio.sleep(poll_interval)
 
 
-async def _wait_for_local_artifacts(
-    result: Dict[str, Any],
+def _artifact_urls(base_url: str, job_id: str) -> Dict[str, str]:
+    return {
+        "output_json": f"{base_url}/v1/simulations/{job_id}/artifacts/output-json",
+        "compact_log": f"{base_url}/v1/simulations/{job_id}/artifacts/compact-log",
+    }
+
+
+async def _request_output_json(
+    client: httpx.AsyncClient,
     *,
-    wait_timeout: float = 5.0,
-    poll_interval: float = 0.2,
-) -> None:
-    compact_log = result.get("compact_log_file")
-    output_file = result.get("output_file")
-    paths = [Path(path) for path in (compact_log, output_file) if isinstance(path, str) and path]
-    if not paths:
-        return
-
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + wait_timeout
-    while True:
-        if all(path.exists() for path in paths):
-            return
-        if loop.time() >= deadline:
-            logger.warning("服务产物尚未全部出现在宿主机目录: %s", [str(path) for path in paths])
-            return
-        await asyncio.sleep(poll_interval)
-
-
-def _serialize_report_rounds(rounds: Sequence[Any]) -> List[Dict[str, str]]:
-    payload: List[Dict[str, str]] = []
-    for index, round_spec in enumerate(rounds, start=1):
-        payload.append(
-            {
-                "label": str(getattr(round_spec, "label", f"round_{index}") or f"round_{index}"),
-                "system_prompt": str(getattr(round_spec, "system_prompt", "") or ""),
-                "extra_user_context": str(getattr(round_spec, "extra_user_context", "") or ""),
-            }
+    base_url: str,
+    headers: Dict[str, str],
+    job_id: str,
+) -> Dict[str, Any] | None:
+    response = await client.get(
+        f"{base_url}/v1/simulations/{job_id}/artifacts/output-json",
+        headers=headers,
+    )
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError:
+        logger.warning(
+            "获取 output-json 失败: job_id=%s status=%s detail=%s",
+            job_id,
+            response.status_code,
+            response.text,
         )
-    return payload
+        return None
+
+    payload = response.json()
+    if isinstance(payload, dict):
+        return payload
+
+    logger.warning("output-json 响应不是 JSON 对象: job_id=%s", job_id)
+    return None
+
+
+async def _request_compact_log(
+    client: httpx.AsyncClient,
+    *,
+    base_url: str,
+    headers: Dict[str, str],
+    job_id: str,
+) -> str | None:
+    response = await client.get(
+        f"{base_url}/v1/simulations/{job_id}/artifacts/compact-log",
+        headers=headers,
+    )
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError:
+        logger.warning(
+            "获取 compact-log 失败: job_id=%s status=%s detail=%s",
+            job_id,
+            response.status_code,
+            response.text,
+        )
+        return None
+
+    text = response.text
+    return text if text.strip() else None
+
+
+async def _fetch_service_artifacts(
+    client: httpx.AsyncClient,
+    *,
+    base_url: str,
+    headers: Dict[str, str],
+    job_id: str,
+) -> Dict[str, Any]:
+    urls = _artifact_urls(base_url, job_id)
+    output_json = await _request_output_json(
+        client,
+        base_url=base_url,
+        headers=headers,
+        job_id=job_id,
+    )
+    compact_log_text = await _request_compact_log(
+        client,
+        base_url=base_url,
+        headers=headers,
+        job_id=job_id,
+    )
+    return {
+        "artifact_urls": urls,
+        "output_json": output_json,
+        "compact_log_text": compact_log_text,
+    }
 
 
 async def _request_report(
@@ -318,6 +362,67 @@ async def _request_report(
     return None
 
 
+def _serialize_report_rounds(rounds: Sequence[Any]) -> List[Dict[str, str]]:
+    payload: List[Dict[str, str]] = []
+    for index, round_spec in enumerate(rounds, start=1):
+        payload.append(
+            {
+                "label": str(getattr(round_spec, "label", f"round_{index}") or f"round_{index}"),
+                "system_prompt": str(getattr(round_spec, "system_prompt", "") or ""),
+                "extra_user_context": str(getattr(round_spec, "extra_user_context", "") or ""),
+            }
+        )
+    return payload
+
+
+def _summary_value(result: Dict[str, Any], key: str) -> Any:
+    value = result.get(key)
+    if value is not None:
+        return value
+
+    output_json = result.get("output_json")
+    if isinstance(output_json, dict):
+        value = output_json.get(key)
+        if value is not None:
+            return value
+        if key == "wave_records_count":
+            waves = ((output_json.get("process") or {}).get("waves") or [])
+            if isinstance(waves, list):
+                return len(waves)
+    return None
+
+
+def _print_service_result_summary(result: Dict[str, Any], label: str) -> None:
+    artifact_urls = result.get("artifact_urls") or {}
+
+    print()
+    print("=" * 60)
+    print(f"  {label} — 运行摘要")
+    print("=" * 60)
+    print(f"  run_id:              {_summary_value(result, 'run_id')}")
+    print(f"  total_waves:         {_summary_value(result, 'total_waves')}")
+    print(f"  wave_records_count:  {_summary_value(result, 'wave_records_count')}")
+    print(f"  service_job_id:       {result.get('service_job_id')}")
+    if artifact_urls.get("output_json"):
+        print(f"  output_json_api:     {artifact_urls['output_json']}")
+    if artifact_urls.get("compact_log"):
+        print(f"  compact_log_api:     {artifact_urls['compact_log']}")
+    print("=" * 60)
+
+
+def _print_compact_log_text(label: str, compact_log_text: str | None) -> None:
+    if not compact_log_text:
+        print("\n  ⚠ 精简日志不可用（compact-log API 无内容）")
+        return
+
+    print()
+    print("=" * 60)
+    print(f"  {label} — 精简日志")
+    print("=" * 60)
+    print(compact_log_text)
+    print("=" * 60)
+
+
 def _print_service_report(label: str, report: str) -> None:
     print()
     print("=" * 60)
@@ -335,9 +440,7 @@ async def _run_service_simulation(
     api_token: str,
     poll_interval: float,
     wait_timeout: float,
-    artifacts_dir: Path,
 ) -> Dict[str, Any]:
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
     headers = _build_headers(api_token)
     printer = ServiceProgressPrinter()
 
@@ -381,19 +484,23 @@ async def _run_service_simulation(
                 with suppress(asyncio.CancelledError):
                     await stream_task
 
-    status = str(job.get("status") or "")
-    if status == "failed":
-        raise RuntimeError(f"服务任务失败: {job.get('error')}")
-    if status == "cancelled":
-        raise RuntimeError(f"服务任务被取消: {job_id}")
+        status = str(job.get("status") or "")
+        if status == "failed":
+            raise RuntimeError(f"服务任务失败: {job.get('error')}")
+        if status == "cancelled":
+            raise RuntimeError(f"服务任务被取消: {job_id}")
 
-    result = result_from_service_job(
-        job,
-        local_root=artifacts_dir,
-        container_root=_CONTAINER_ARTIFACTS_DIR,
-    )
-    result["service_job_id"] = job_id
-    await _wait_for_local_artifacts(result)
+        result = dict(job.get("result") or {})
+        result["service_job_id"] = job_id
+        result.update(
+            await _fetch_service_artifacts(
+                client,
+                base_url=base_url,
+                headers=headers,
+                job_id=job_id,
+            )
+        )
+
     return result
 
 
@@ -404,7 +511,6 @@ async def run_basic_service(
     api_token: str,
     poll_interval: float,
     wait_timeout: float,
-    artifacts_dir: Path,
 ) -> Dict[str, Any]:
     return await _run_service_simulation(
         label="基础模拟",
@@ -413,7 +519,6 @@ async def run_basic_service(
         api_token=api_token,
         poll_interval=poll_interval,
         wait_timeout=wait_timeout,
-        artifacts_dir=artifacts_dir,
     )
 
 
@@ -424,7 +529,6 @@ async def run_enhanced_service(
     api_token: str,
     poll_interval: float,
     wait_timeout: float,
-    artifacts_dir: Path,
 ) -> Dict[str, Any]:
     return await _run_service_simulation(
         label="增强模拟",
@@ -437,7 +541,6 @@ async def run_enhanced_service(
         api_token=api_token,
         poll_interval=poll_interval,
         wait_timeout=wait_timeout,
-        artifacts_dir=artifacts_dir,
     )
 
 
@@ -453,12 +556,8 @@ async def _run_mode(
     no_report: bool,
 ) -> Dict[str, Any]:
     result = await run_coro
-    print_result_summary(
-        result,
-        label,
-        extra_fields={"service_job_id": result.get("service_job_id")},
-    )
-    print_compact_log(result, label)
+    _print_service_result_summary(result, label)
+    _print_compact_log_text(label, result.get("compact_log_text"))
 
     if no_report:
         return result
@@ -516,18 +615,12 @@ async def main() -> None:
         default=DEFAULT_REPORT_MAX_LLM_CALLS,
         help=f"服务端报告阶段的 LLM 调用上限（默认 {DEFAULT_REPORT_MAX_LLM_CALLS}）",
     )
-    parser.add_argument(
-        "--artifacts-dir",
-        default=str(DEFAULT_ARTIFACTS_DIR),
-        help=f"宿主机日志目录（默认 {DEFAULT_ARTIFACTS_DIR}）",
-    )
     args = parser.parse_args()
 
     base_url = args.base_url.rstrip("/")
     api_token = str(args.api_token or "").strip()
     waves = args.waves
     no_report = args.no_report
-    artifacts_dir = Path(args.artifacts_dir)
 
     if args.mode in ("basic", "all"):
         await _run_mode(
@@ -538,7 +631,6 @@ async def main() -> None:
                 api_token=api_token,
                 poll_interval=args.poll_interval,
                 wait_timeout=args.timeout,
-                artifacts_dir=artifacts_dir,
             ),
             report_rounds=build_report_rounds(),
             base_url=base_url,
@@ -557,7 +649,6 @@ async def main() -> None:
                 api_token=api_token,
                 poll_interval=args.poll_interval,
                 wait_timeout=args.timeout,
-                artifacts_dir=artifacts_dir,
             ),
             report_rounds=build_report_rounds(SAMPLE_ACCOUNT, SAMPLE_POSTS),
             base_url=base_url,

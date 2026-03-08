@@ -31,3 +31,4 @@ def test_service_example_help_works_without_local_ripple_source(tmp_path: Path) 
 
     assert proc.returncode == 0, proc.stderr
     assert "HTTP+SSE 服务版" in proc.stdout
+    assert "--artifacts-dir" not in proc.stdout

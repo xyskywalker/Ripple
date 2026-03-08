@@ -476,7 +476,7 @@ python examples/e2e_pmf_fmcg_algorithm_ecommerce.py enhanced
 python examples/e2e_pmf_fmcg_algorithm_ecommerce.py all
 ```
 
-> 💡 Local direct-run scripts automatically read `llm_config.yaml` and output JSON result files plus Markdown compact logs. The service version `examples/e2e_simulation_xiaohongshu_service.py` only calls HTTP+SSE APIs, lets the service generate the report, and stores artifacts by default under `data/ripple-service/ripple_outputs/`.
+> 💡 Local direct-run scripts automatically read `llm_config.yaml` and output JSON result files plus Markdown compact logs. The service version `examples/e2e_simulation_xiaohongshu_service.py` is now a pure HTTP+SSE client: progress, full JSON, compact log, and report are all fetched via service APIs, without relying on any host-side artifact mount mapping.
 
 ### Social Media Simulation
 

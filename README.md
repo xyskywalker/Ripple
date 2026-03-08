@@ -471,7 +471,7 @@ python examples/e2e_pmf_fmcg_algorithm_ecommerce.py enhanced
 python examples/e2e_pmf_fmcg_algorithm_ecommerce.py all
 ```
 
-> 💡 本地直跑脚本会自动读取 `llm_config.yaml`，并输出 JSON 结果文件和 Markdown 压缩日志。服务版 `examples/e2e_simulation_xiaohongshu_service.py` 则只调用 HTTP+SSE 接口，报告由服务端生成，产物默认落在 `data/ripple-service/ripple_outputs/`。
+> 💡 本地直跑脚本会自动读取 `llm_config.yaml`，并输出 JSON 结果文件和 Markdown 压缩日志。服务版 `examples/e2e_simulation_xiaohongshu_service.py` 现在是纯 HTTP+SSE 客户端：任务进度、完整 JSON、精简日志和报告都通过服务接口获取，不再依赖宿主机产物目录映射。
 
 ### 社交媒体模拟
 
