@@ -216,6 +216,10 @@ No local Python/pip dependencies are required. The service is exposed via HTTP+S
 
 `deploy/docker/docker-compose.yml` now defaults to **auth disabled** as well; authentication is only enabled when you explicitly set `RIPPLE_API_TOKEN`.
 
+Recommended setup: use a single host bind mount by running `mkdir -p data/ripple-service/ripple_outputs` first, then mount local `data/ripple-service/` to container `/data`. The service writes JSON / Markdown artifacts to `/data/ripple_outputs/`, which maps to `data/ripple-service/ripple_outputs/` on the host.
+
+`POST /v1/simulations/{job_id}/report` reuses request-level `llm_config` first, and only falls back to the startup `llm_config.yaml` when the original job request did not provide one. So clients never need to read config files from inside Docker.
+
 #### Mode 1: Pass Default LLM at Startup (auth enabled explicitly)
 
 After startup, `POST /v1/simulations` can omit `llm_config`.
@@ -231,7 +235,7 @@ docker run -d --name ripple-service \
   -e RIPPLE_LLM_API_KEY=sk-xxx \
   -e RIPPLE_LLM_URL=https://api.openai.com/v1 \
   -e RIPPLE_LLM_API_MODE=chat_completions \
-  -v ripple-service-data:/data \
+  -v "$PWD/data/ripple-service:/data" \
   xyplusxy/ripple:v0.2.0
 ```
 
@@ -248,7 +252,7 @@ docker run -d --name ripple-service \
   -e RIPPLE_LLM_API_KEY="$OPENAI_API_KEY" \
   -e RIPPLE_LLM_URL=https://api.openai.com/v1 \
   -e RIPPLE_LLM_API_MODE=chat_completions \
-  -v ripple-service-data:/data \
+  -v "$PWD/data/ripple-service:/data" \
   xyplusxy/ripple:v0.2.0
 ```
 
@@ -274,6 +278,19 @@ curl -N "$BASE_URL/v1/simulations/<JOB_ID>/events" \
 # 3) Get status
 curl -sS "$BASE_URL/v1/simulations/<JOB_ID>" \
   -H "Authorization: Bearer $RIPPLE_API_TOKEN"
+
+# 4) Generate post-simulation report
+curl -sS -X POST "$BASE_URL/v1/simulations/<JOB_ID>/report" \
+  -H "Authorization: Bearer $RIPPLE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rounds":[
+      {"label":"summary","system_prompt":"Summarize this simulation in Simplified Chinese.","extra_user_context":""}
+    ]
+  }'
+
+# 5) Read host-side artifacts
+ls data/ripple-service/ripple_outputs
 ```
 
 #### Mode 2: No LLM at Startup (pass `llm_config` per request, auth disabled by default)
@@ -281,7 +298,7 @@ curl -sS "$BASE_URL/v1/simulations/<JOB_ID>" \
 ```bash
 docker run -d --name ripple-service \
   -p 127.0.0.1:8080:8080 \
-  -v ripple-service-data:/data \
+  -v "$PWD/data/ripple-service:/data" \
   xyplusxy/ripple:v0.2.0
 ```
 
@@ -314,6 +331,15 @@ curl -N "$BASE_URL/v1/simulations/<JOB_ID>/events"
 
 # 3) Get status
 curl -sS "$BASE_URL/v1/simulations/<JOB_ID>"
+
+# 4) Generate post-simulation report (reuses llm_config from step 1)
+curl -sS -X POST "$BASE_URL/v1/simulations/<JOB_ID>/report" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rounds":[
+      {"label":"summary","system_prompt":"Summarize this simulation in Simplified Chinese.","extra_user_context":""}
+    ]
+  }'
 ```
 
 ### Manual Installation (Non-Docker)
@@ -450,7 +476,7 @@ python examples/e2e_pmf_fmcg_algorithm_ecommerce.py enhanced
 python examples/e2e_pmf_fmcg_algorithm_ecommerce.py all
 ```
 
-> 💡 All scripts automatically read `llm_config.yaml` configuration and output JSON result files plus Markdown compact logs. Use `--no-report` to skip post-simulation LLM interpretive report generation.
+> 💡 Local direct-run scripts automatically read `llm_config.yaml` and output JSON result files plus Markdown compact logs. The service version `examples/e2e_simulation_xiaohongshu_service.py` only calls HTTP+SSE APIs, lets the service generate the report, and stores artifacts by default under `data/ripple-service/ripple_outputs/`.
 
 ### Social Media Simulation
 

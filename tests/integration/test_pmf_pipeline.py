@@ -96,3 +96,39 @@ class TestEnsembleStatisticsIntegration:
         ]
         kappa = compute_fleiss_kappa(ratings)
         assert isinstance(kappa, float)
+
+
+    @pytest.mark.asyncio
+    async def test_deliberation_emits_round_progress_events(self):
+        from ripple.engine.deliberation import DeliberationOrchestrator
+        from ripple.primitives.pmf_models import TribunalMember
+
+        events = []
+
+        async def fake_llm_caller(*, system_prompt="", user_prompt=""):
+            if "输出 JSON" in user_prompt or "JSON" in user_prompt:
+                return '{"scores":{"reach_realism":4},"rationale":"ok","confidence":0.8,"risks":["r1"],"recommendations":["x"]}'
+            return '{"scores":{"reach_realism":4},"rationale":"ok","confidence":0.8,"risks":["r1"],"recommendations":["x"]}'
+
+        async def on_progress(event_type, detail):
+            events.append((event_type, dict(detail)))
+
+        orch = DeliberationOrchestrator(
+            members=[
+                TribunalMember(role="A", perspective="p1", expertise="e1"),
+                TribunalMember(role="B", perspective="p2", expertise="e2"),
+            ],
+            llm_caller=fake_llm_caller,
+            dimensions=["reach_realism"],
+            rubric="1-5",
+            max_rounds=2,
+            on_progress=on_progress,
+        )
+
+        await orch.run({"summary": "demo", "key_signals": []})
+
+        assert [item[0] for item in events] == [
+            "round_start", "round_end", "round_start", "round_end"
+        ]
+        assert events[0][1]["round_number"] == 1
+        assert events[-1][1]["round_number"] == 2

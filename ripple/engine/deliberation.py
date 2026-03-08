@@ -6,7 +6,7 @@ dual-gate convergence (threshold + round limit).
 
 import json
 import logging
-from typing import Any, Awaitable, Callable, Dict, List
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from ripple.agents.tribunal import TribunalAgent
 from ripple.primitives.pmf_models import (
@@ -44,11 +44,13 @@ class DeliberationOrchestrator:
         rubric: str,
         max_rounds: int = 4,
         system_prompt: str = "",
+        on_progress: Optional[Callable[[str, Dict[str, Any]], Awaitable[None]]] = None,
     ):
         self.members = members
         self.dimensions = dimensions
         self.rubric = rubric
         self.max_rounds = max_rounds
+        self._on_progress = on_progress
 
         # Create TribunalAgent instances from member configs
         self._agents: List[TribunalAgent] = [
@@ -61,6 +63,11 @@ class DeliberationOrchestrator:
             )
             for m in members
         ]
+
+    async def _emit_progress(self, event_type: str, detail: Dict[str, Any]) -> None:
+        if self._on_progress is None:
+            return
+        await self._on_progress(event_type, detail)
 
     async def run(
         self,
@@ -80,6 +87,11 @@ class DeliberationOrchestrator:
         consecutive_stable = 0
 
         for round_num in range(self.max_rounds):
+            round_number = round_num + 1
+            await self._emit_progress(
+                "round_start",
+                {"round_number": round_number, "total_rounds": self.max_rounds},
+            )
             if round_num == 0:
                 # Round 0: evaluate only
                 opinions = await self._evaluate_all(evidence_str, round_num)
@@ -93,6 +105,15 @@ class DeliberationOrchestrator:
                 )
                 records.append(record)
                 previous_opinions = opinions
+                await self._emit_progress(
+                    "round_end",
+                    {
+                        "round_number": round_number,
+                        "total_rounds": self.max_rounds,
+                        "converged": False,
+                        "challenge_count": 0,
+                    },
+                )
             else:
                 # Rounds 1+: challenge → revise
                 challenges = await self._challenge_round(previous_opinions)
@@ -121,6 +142,15 @@ class DeliberationOrchestrator:
                 )
                 records.append(record)
                 previous_opinions = opinions
+                await self._emit_progress(
+                    "round_end",
+                    {
+                        "round_number": round_number,
+                        "total_rounds": self.max_rounds,
+                        "converged": converged,
+                        "challenge_count": len(challenges),
+                    },
+                )
 
                 if converged:
                     logger.info(

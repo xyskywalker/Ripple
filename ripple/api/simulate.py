@@ -298,6 +298,23 @@ async def simulate(
                 for m in tribunal_config["members"]
             ]
 
+            emit_progress = context.get("emit_progress")
+
+            async def _on_deliberation_progress(event_type: str, detail: Dict[str, Any]) -> None:
+                if not callable(emit_progress):
+                    return
+                total_rounds = max(1, int(detail.get("total_rounds") or deliberation_rounds or 1))
+                round_number = max(1, int(detail.get("round_number") or 1))
+                if event_type == "round_start":
+                    phase_fraction = (round_number - 1) / total_rounds
+                else:
+                    phase_fraction = round_number / total_rounds
+                await emit_progress(
+                    event_type,
+                    phase_fraction=phase_fraction,
+                    detail=detail,
+                )
+
             orch = DeliberationOrchestrator(
                 members=members,
                 llm_caller=tribunal_caller,
@@ -307,6 +324,7 @@ async def simulate(
                 else "1=very weak, 2=weak, 3=moderate, 4=strong, 5=very strong",
                 max_rounds=deliberation_rounds,
                 system_prompt=tribunal_system,
+                on_progress=_on_deliberation_progress,
             )
 
             evidence_pack = context.get("evidence_pack", {})

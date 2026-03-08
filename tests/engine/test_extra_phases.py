@@ -176,3 +176,87 @@ class TestExtraPhaseExecution:
             data = json.loads(out.read_text(encoding="utf-8"))
             assert "deliberation" in data["process"]
             assert data["process"]["deliberation"]["ok"] is True
+
+
+    @pytest.mark.asyncio
+    async def test_extra_phase_handler_can_emit_intermediate_progress_events(self):
+        events = []
+
+        async def handler(event):
+            events.append(event)
+
+        async def deliberate_handler(context):
+            emit_progress = context["emit_progress"]
+            await emit_progress(
+                "round_start",
+                phase_fraction=1 / 3,
+                detail={"round_number": 1, "total_rounds": 3},
+            )
+            await emit_progress(
+                "round_end",
+                phase_fraction=1 / 3,
+                detail={"round_number": 1, "total_rounds": 3, "converged": False},
+            )
+            return {"ok": True}
+
+        extra_phases = {
+            "DELIBERATE": {
+                "after": "RIPPLE",
+                "weight": 0.15,
+                "handler": deliberate_handler,
+            }
+        }
+
+        init_dynamics = json.dumps({
+            "wave_time_window": "2h",
+            "wave_time_window_reasoning": "test",
+            "energy_decay_per_wave": 0.1,
+            "platform_characteristics": "test",
+        })
+        init_agents = json.dumps({
+            "star_configs": [{"id": "star_1", "description": "KOL"}],
+            "sea_configs": [{"id": "sea_1", "description": "Users"}],
+        })
+        init_topology = json.dumps({
+            "topology": {"edges": []},
+            "seed_ripple": {"content": "seed", "initial_energy": 0.5},
+        })
+        wave0 = json.dumps({
+            "wave_number": 0,
+            "simulated_time_elapsed": "2h",
+            "simulated_time_remaining": "4h",
+            "continue_propagation": False,
+            "termination_reason": "stop",
+            "activated_agents": [],
+            "skipped_agents": [],
+            "global_observation": "",
+        })
+        observe_resp = json.dumps({
+            "phase_vector": {"heat": "growth"},
+            "phase_transition_detected": False,
+            "emergence_events": [],
+            "topology_recommendations": [],
+        })
+        synth_resp = json.dumps({
+            "prediction": {}, "timeline": [],
+            "bifurcation_points": [], "agent_insights": {},
+        })
+
+        runtime = SimulationRuntime(
+            omniscient_caller=AsyncMock(side_effect=[
+                init_dynamics, init_agents, init_topology,
+                wave0,
+                observe_resp, synth_resp,
+            ]),
+            agent_caller=AsyncMock(),
+            on_progress=handler,
+            extra_phases=extra_phases,
+        )
+
+        await runtime.run({"event": {"description": "t"}, "skill": "x"}, run_id="t")
+
+        deliberate_round_types = [
+            event.type for event in events if event.phase == "DELIBERATE"
+        ]
+        assert "round_start" in deliberate_round_types
+        assert "round_end" in deliberate_round_types

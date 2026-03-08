@@ -258,6 +258,22 @@ class SimulationRuntime:
                 total_waves=estimated_waves,
             ))
 
+            async def emit_progress(
+                event_type: str,
+                *,
+                phase_fraction: float = 0.0,
+                detail: Optional[Dict[str, Any]] = None,
+            ) -> None:
+                await self._emit(SimulationEvent(
+                    type=event_type,
+                    phase=phase_name,
+                    run_id=run_id,
+                    progress=self._progress(phase_name, phase_fraction),
+                    total_waves=estimated_waves,
+                    detail=detail or {},
+                ))
+
+            context["emit_progress"] = emit_progress
             try:
                 result = handler(context)
                 if inspect.isawaitable(result):
@@ -286,11 +302,22 @@ class SimulationRuntime:
                 key = self._process_key_for_phase(phase_name)
                 self._recorder.record_process(key, result)
 
+            phase_end_detail: Optional[Dict[str, Any]] = None
+            if phase_name == "DELIBERATE" and isinstance(result, dict):
+                summary = result.get("deliberation_summary") or {}
+                if isinstance(summary, dict):
+                    phase_end_detail = {
+                        "rounds": summary.get("rounds_executed"),
+                        "converged": summary.get("converged"),
+                    }
+
             await self._emit(SimulationEvent(
                 type="phase_end", phase=phase_name, run_id=run_id,
                 progress=self._progress(phase_name, 1.0),
                 total_waves=estimated_waves,
+                detail=phase_end_detail,
             ))
+            context.pop("emit_progress", None)
 
     async def _emit(self, event: SimulationEvent) -> None:
         """触发进度回调（支持同步和异步回调）。 / Emit progress callback (sync and async)."""

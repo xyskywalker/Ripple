@@ -15,21 +15,51 @@ import argparse
 import asyncio
 import json
 import logging
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+import httpx
 
 # Project root (examples/ is one level below repo root)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from ripple.api.simulate import simulate  # noqa: E402 — re-export for convenience
-from ripple.llm.router import ModelRouter  # noqa: E402
-from ripple.primitives.events import SimulationEvent  # noqa: E402
-
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ProgressEvent:
+    """Lightweight progress event used by examples without requiring local ripple code."""
+
+    type: str
+    phase: str
+    run_id: str
+    progress: float = 0.0
+    wave: Optional[int] = None
+    total_waves: Optional[int] = None
+    agent_id: Optional[str] = None
+    agent_type: Optional[str] = None
+    detail: Optional[Dict[str, Any]] = None
+
+
+async def simulate(*args, **kwargs):
+    """Lazy import wrapper so service-only scripts don't require local ripple source."""
+    from ripple.api.simulate import simulate as ripple_simulate
+
+    return await ripple_simulate(*args, **kwargs)
+
+
+def _load_model_router_class():
+    try:
+        from ripple.llm.router import ModelRouter
+    except Exception:
+        return None
+    return ModelRouter
 
 
 # =============================================================================
@@ -214,7 +244,7 @@ def _progress_bar(progress: float) -> str:
     return f"[{_BAR_FILL * filled}{_BAR_EMPTY * empty}] {progress:>5.1%}"
 
 
-def print_progress(event: SimulationEvent) -> None:
+def print_progress(event: Any) -> None:
     """Terminal progress callback (sync). Plug into ``simulate(on_progress=...)``."""
     bar = _progress_bar(event.progress)
     phase_cn = _PHASE_CN.get(event.phase, event.phase)
@@ -261,6 +291,122 @@ def print_progress(event: SimulationEvent) -> None:
         aid = event.agent_id or "?"
         rtype = (event.detail or {}).get("response_type", "?")
         print(f"  {bar}    ← {aid} 响应: {rtype}")
+
+    elif event.type == "round_start":
+        detail = event.detail or {}
+        round_number = detail.get("round_number", "?")
+        total_rounds = detail.get("total_rounds", "?")
+        print(f"  {bar}  ━ 合议 Round {round_number}/{total_rounds} 开始")
+
+    elif event.type == "round_end":
+        detail = event.detail or {}
+        round_number = detail.get("round_number", "?")
+        total_rounds = detail.get("total_rounds", "?")
+        converged = detail.get("converged")
+        suffix = "（已收敛）" if converged else ""
+        print(f"  {bar}    ╰ 合议 Round {round_number}/{total_rounds} 完成{suffix}")
+
+
+# =============================================================================
+# Service-mode helpers — HTTP job status & SSE progress adaptation
+# =============================================================================
+
+_TERMINAL_JOB_STATUSES = {"completed", "failed", "cancelled"}
+
+
+def is_terminal_job_status(status: str) -> bool:
+    """Return True when a service job status is terminal."""
+    return status in _TERMINAL_JOB_STATUSES
+
+
+def progress_event_from_service_event(event: Dict[str, Any]) -> Optional[ProgressEvent]:
+    """Convert one HTTP+SSE service event envelope to ``ProgressEvent``.
+
+    Returns ``None`` for non-progress events such as ``job.started``.
+    """
+    event_type = str(event.get("type") or "")
+    if not event_type.startswith("progress."):
+        return None
+
+    payload = event.get("payload") or {}
+    if not isinstance(payload, dict):
+        payload = {}
+
+    detail = payload.get("detail")
+    if not isinstance(detail, dict):
+        detail = {}
+
+    progress = payload.get("progress", 0.0)
+    try:
+        progress_value = float(progress)
+    except (TypeError, ValueError):
+        progress_value = 0.0
+
+    total_waves = payload.get("total_waves")
+    if not isinstance(total_waves, int):
+        total_waves = None
+
+    wave = payload.get("wave")
+    if not isinstance(wave, int):
+        wave = None
+
+    return ProgressEvent(
+        type=event_type.removeprefix("progress."),
+        phase=str(payload.get("phase") or ""),
+        run_id=str(event.get("job_id") or "service-job"),
+        progress=progress_value,
+        wave=wave,
+        total_waves=total_waves,
+        agent_id=payload.get("agent_id"),
+        agent_type=payload.get("agent_type"),
+        detail=detail,
+    )
+
+
+
+def resolve_service_artifact_path(
+    path_value: Optional[str],
+    *,
+    local_root: Path = REPO_ROOT / "ripple_outputs",
+    container_root: str = "/app/ripple_outputs",
+) -> Optional[str]:
+    """Map a service-returned container artifact path to a host-local path."""
+    if not path_value:
+        return path_value
+
+    path_str = str(path_value)
+    container_prefix = container_root.rstrip("/") + "/"
+    if path_str == container_root.rstrip("/"):
+        return str(local_root)
+    if path_str.startswith(container_prefix):
+        rel = path_str[len(container_prefix):]
+        return str(local_root / rel)
+    return path_str
+
+
+
+def result_from_service_job(
+    job: Dict[str, Any],
+    *,
+    local_root: Path = REPO_ROOT / "ripple_outputs",
+    container_root: str = "/app/ripple_outputs",
+) -> Dict[str, Any]:
+    """Extract a direct-``simulate()``-shaped result dict from a service job payload."""
+    result = dict(job.get("result") or {})
+    original_paths = {
+        key: result.get(key)
+        for key in ("output_file", "compact_log_file")
+        if result.get(key)
+    }
+    for key in ("output_file", "compact_log_file"):
+        result[key] = resolve_service_artifact_path(
+            result.get(key),
+            local_root=local_root,
+            container_root=container_root,
+        )
+    if original_paths:
+        result["service_artifacts"] = original_paths
+    return result
 
 
 # =============================================================================
@@ -317,20 +463,53 @@ def compress_waves_for_llm(waves: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return compressed
 
 
+def _read_text_from_container(path_value: str, container_name: str = "ripple-service") -> Optional[str]:
+    if not path_value:
+        return None
+    try:
+        proc = subprocess.run(
+            ["docker", "exec", container_name, "cat", path_value],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except Exception as exc:
+        logger.debug("读取容器文件失败 %s: %s", path_value, exc)
+        return None
+    return proc.stdout
+
+
 def load_simulation_log(result: Dict[str, Any]) -> Optional[str]:
     """Load the simulation log text, preferring the compact markdown log.
 
     Falls back to compressing the full JSON output if no compact log exists.
+    When only service container paths are available, attempts to read artifacts
+    directly from the running container.
     """
     compact_log = result.get("compact_log_file")
     if compact_log and Path(compact_log).exists():
         return Path(compact_log).read_text(encoding="utf-8")
 
+    service_artifacts = result.get("service_artifacts") or {}
+    service_compact_log = service_artifacts.get("compact_log_file")
+    if isinstance(service_compact_log, str):
+        compact_text = _read_text_from_container(service_compact_log)
+        if compact_text:
+            return compact_text
+
     output_file = result.get("output_file")
     if output_file and Path(output_file).exists():
         full_data = json.loads(Path(output_file).read_text(encoding="utf-8"))
     else:
-        full_data = result
+        service_output_file = service_artifacts.get("output_file")
+        if isinstance(service_output_file, str):
+            output_text = _read_text_from_container(service_output_file)
+            if output_text:
+                full_data = json.loads(output_text)
+            else:
+                full_data = result
+        else:
+            full_data = result
 
     process = full_data.get("process") or {}
     compact = {
@@ -356,8 +535,124 @@ def load_simulation_log(result: Dict[str, Any]) -> Optional[str]:
 # LLM call wrapper
 # =============================================================================
 
+_AZURE_DOMAIN_SUFFIXES = (
+    "cognitiveservices.azure.com",
+    "openai.azure.com",
+    "services.ai.azure.com",
+)
+
+
+def _read_yaml_config(path: Path) -> Dict[str, Any]:
+    import yaml
+
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+
+def _read_container_llm_config(container_name: str = "ripple-service") -> Optional[Dict[str, Any]]:
+    try:
+        proc = subprocess.run(
+            ["docker", "exec", container_name, "cat", "/app/llm_config.yaml"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except Exception as exc:
+        logger.debug("读取容器内 llm_config 失败: %s", exc)
+        return None
+
+    try:
+        import yaml
+
+        return yaml.safe_load(proc.stdout) or {}
+    except Exception as exc:
+        logger.warning("解析容器内 llm_config 失败: %s", exc)
+        return None
+
+
+
+def _load_report_config_data(config_file: Optional[str]) -> Optional[Dict[str, Any]]:
+    if config_file:
+        path = Path(config_file)
+        if path.exists():
+            try:
+                return _read_yaml_config(path)
+            except Exception as exc:
+                logger.warning("读取本地 llm_config 失败: %s", exc)
+
+    return _read_container_llm_config()
+
+
+
+def _merge_role_config(config_data: Dict[str, Any], role: str) -> Dict[str, Any]:
+    merged: Dict[str, Any] = {}
+    default = config_data.get("_default", {})
+    if isinstance(default, dict):
+        merged.update({k: v for k, v in default.items() if v is not None})
+
+    role_cfg = config_data.get(role, {})
+    if isinstance(role_cfg, str):
+        merged["model_name"] = role_cfg
+        merged.setdefault("model_platform", "openai")
+    elif isinstance(role_cfg, dict):
+        merged.update({k: v for k, v in role_cfg.items() if v is not None})
+
+    return merged
+
+
+
+def _is_azure_url(url: str) -> bool:
+    hostname = urlparse(url).hostname or ""
+    return any(hostname.endswith(suffix) for suffix in _AZURE_DOMAIN_SUFFIXES)
+
+
+
+def _resolve_openai_endpoint(url: str, api_mode: str) -> str:
+    parsed = urlparse(url)
+    suffix = "/responses" if api_mode == "responses" else "/chat/completions"
+    path = parsed.path
+    if suffix not in path:
+        path = path.rstrip("/") + suffix
+    query = urlencode(parse_qs(parsed.query, keep_blank_values=True), doseq=True)
+    return urlunparse(parsed._replace(path=path, query=query))
+
+
+
+def _extract_responses_text(data: Dict[str, Any]) -> str:
+    output_text = data.get("output_text")
+    if isinstance(output_text, str) and output_text:
+        return output_text
+
+    for item in data.get("output", []) or []:
+        for content in item.get("content", []) or []:
+            text = content.get("text")
+            if isinstance(text, str) and text:
+                return text
+    return ""
+
+
+
+def _extract_chat_completions_text(data: Dict[str, Any]) -> str:
+    choices = data.get("choices", []) or []
+    if not choices:
+        return ""
+    message = choices[0].get("message", {})
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, dict):
+                text = block.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "".join(parts)
+    return ""
+
+
 async def call_llm(
-    router: ModelRouter,
+    router: Any,
     role: str,
     system_prompt: str,
     user_message: str,
@@ -370,6 +665,77 @@ async def call_llm(
     except Exception as exc:
         logger.warning("LLM 调用失败: %s", exc)
         return ""
+
+
+async def _call_llm_from_config_data(
+    config_data: Dict[str, Any],
+    role: str,
+    system_prompt: str,
+    user_message: str,
+) -> str:
+    cfg = _merge_role_config(config_data, role)
+    platform = str(cfg.get("model_platform") or "openai")
+    api_mode = str(cfg.get("api_mode") or "chat_completions")
+    url = str(cfg.get("url") or "")
+    api_key = str(cfg.get("api_key") or "")
+    model_name = str(cfg.get("model_name") or "")
+
+    if platform != "openai":
+        logger.warning("本地 fallback 仅支持 openai 兼容配置，当前=%s", platform)
+        return ""
+    if not url or not api_key or not model_name:
+        logger.warning("fallback LLM 配置不完整，无法生成报告")
+        return ""
+
+    endpoint = _resolve_openai_endpoint(url, api_mode)
+    headers = {"Content-Type": "application/json"}
+    if _is_azure_url(url):
+        headers["api-key"] = api_key
+    else:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    temperature = cfg.get("temperature", 0.7)
+    timeout = float(cfg.get("timeout") or 120.0)
+    max_tokens = cfg.get("max_tokens")
+
+    if api_mode == "responses":
+        body: Dict[str, Any] = {
+            "model": model_name,
+            "input": [{
+                "role": "user",
+                "content": [{"type": "input_text", "text": user_message}],
+            }],
+            "temperature": temperature,
+        }
+        if system_prompt:
+            body["instructions"] = system_prompt
+        if max_tokens is not None:
+            body["max_output_tokens"] = max_tokens
+    else:
+        messages: List[Dict[str, str]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": user_message})
+        body = {
+            "model": model_name,
+            "messages": messages,
+            "temperature": temperature,
+        }
+        if max_tokens is not None:
+            body["max_tokens"] = max_tokens
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(endpoint, headers=headers, json=body)
+            response.raise_for_status()
+            data = response.json()
+    except Exception as exc:
+        logger.warning("fallback LLM 请求失败: %s", exc)
+        return ""
+
+    if api_mode == "responses":
+        return _extract_responses_text(data).strip()
+    return _extract_chat_completions_text(data).strip()
 
 
 # =============================================================================
@@ -395,18 +761,23 @@ async def generate_report(
 
     Returns the concatenated report text, or None if all rounds fail.
     """
-    if not config_file:
-        return None
-
     log_text = load_simulation_log(result)
     if not log_text:
         return None
 
-    try:
-        router = ModelRouter(config_file=config_file, max_llm_calls=max_llm_calls)
-    except Exception as exc:
-        logger.warning("创建 LLM 路由器失败: %s", exc)
+    config_data = _load_report_config_data(config_file)
+    if not config_data:
+        logger.warning("未找到可用 llm_config，无法生成报告")
         return None
+
+    router = None
+    router_cls = _load_model_router_class()
+    if router_cls is not None:
+        try:
+            router = router_cls(llm_config=config_data, max_llm_calls=max_llm_calls)
+        except Exception as exc:
+            logger.warning("创建 LLM 路由器失败，转为 fallback 直连: %s", exc)
+            router = None
 
     parts: List[str] = []
     for i, rd in enumerate(rounds, 1):
@@ -415,13 +786,22 @@ async def generate_report(
         if rd.extra_user_context:
             user_msg += "\n\n" + rd.extra_user_context
         try:
-            text = await call_llm(router, role, rd.system_prompt, user_msg)
+            if router is not None:
+                text = await call_llm(router, role, rd.system_prompt, user_msg)
+            else:
+                text = await _call_llm_from_config_data(
+                    config_data,
+                    role,
+                    rd.system_prompt,
+                    user_msg,
+                )
             if text:
                 parts.append(text)
         except Exception as exc:
             logger.warning("第%d轮解读失败: %s", i, exc)
 
     return "\n\n".join(parts) if parts else None
+
 
 
 # =============================================================================

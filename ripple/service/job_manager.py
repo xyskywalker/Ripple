@@ -17,18 +17,29 @@ RunSimulationFn = Callable[[dict, Callable[[SimulationEvent], Awaitable[None]]],
 
 
 class JobManager:
-    def __init__(self, db_path: str | Path, run_simulation: RunSimulationFn = run_simulation_with_progress):
+    def __init__(
+        self,
+        db_path: str | Path,
+        output_dir: str | Path = 'ripple_outputs',
+        run_simulation: RunSimulationFn = run_simulation_with_progress,
+    ):
         self.repo = JobRepoSQLite(db_path=db_path)
         self.repo.init_schema()
         self.event_bus = EventBus()
         self._run_simulation = run_simulation
+        self._output_dir = Path(output_dir)
         self._tasks: dict[str, asyncio.Task] = {}
         self._cancel_tokens: dict[str, tuple[str, datetime]] = {}
 
     async def create_job(self, request: dict) -> str:
+        normalized_request = dict(request)
+        if not normalized_request.get('output_path'):
+            self._output_dir.mkdir(parents=True, exist_ok=True)
+            normalized_request['output_path'] = str(self._output_dir) + '/'
+
         job_id = f"job_{uuid.uuid4().hex[:12]}"
-        self.repo.create_job(job_id, request)
-        self._tasks[job_id] = asyncio.create_task(self._execute(job_id=job_id, request=request))
+        self.repo.create_job(job_id, normalized_request)
+        self._tasks[job_id] = asyncio.create_task(self._execute(job_id=job_id, request=normalized_request))
         return job_id
 
     async def _on_progress(self, job_id: str, event: SimulationEvent) -> None:

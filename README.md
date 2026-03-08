@@ -211,6 +211,10 @@ Ripple 的四体智能体架构是理解整个系统的关键：
 
 `deploy/docker/docker-compose.yml` 的默认行为也已改为**不启用鉴权**；只有显式设置 `RIPPLE_API_TOKEN` 时才开启鉴权。
 
+推荐始终使用单一宿主机目录挂载：先执行 `mkdir -p data/ripple-service/ripple_outputs`，再将本地 `data/ripple-service/` 挂载到容器 `/data`。服务会把 JSON / Markdown 产物写到容器 `/data/ripple_outputs/`，宿主机对应目录即 `data/ripple-service/ripple_outputs/`。
+
+`POST /v1/simulations/{job_id}/report` 会优先复用创建任务时请求体中的 `llm_config`，只有当请求里未提供时才回退到容器启动时的默认 `llm_config.yaml`，因此客户端不需要进入 Docker 读取配置文件。
+
 #### 方式1：启动时传入默认 LLM 参数（显式开启鉴权）
 
 启动后，`POST /v1/simulations` 可不再传 `llm_config`。
@@ -226,7 +230,7 @@ docker run -d --name ripple-service \
   -e RIPPLE_LLM_API_KEY=sk-xxx \
   -e RIPPLE_LLM_URL=https://api.openai.com/v1 \
   -e RIPPLE_LLM_API_MODE=chat_completions \
-  -v ripple-service-data:/data \
+  -v "$PWD/data/ripple-service:/data" \
   xyplusxy/ripple:v0.2.0
 ```
 
@@ -243,7 +247,7 @@ docker run -d --name ripple-service \
   -e RIPPLE_LLM_API_KEY="$OPENAI_API_KEY" \
   -e RIPPLE_LLM_URL=https://api.openai.com/v1 \
   -e RIPPLE_LLM_API_MODE=chat_completions \
-  -v ripple-service-data:/data \
+  -v "$PWD/data/ripple-service:/data" \
   xyplusxy/ripple:v0.2.0
 ```
 
@@ -269,6 +273,19 @@ curl -N "$BASE_URL/v1/simulations/<JOB_ID>/events" \
 # 3) 查询状态
 curl -sS "$BASE_URL/v1/simulations/<JOB_ID>" \
   -H "Authorization: Bearer $RIPPLE_API_TOKEN"
+
+# 4) 生成模拟后解读报告
+curl -sS -X POST "$BASE_URL/v1/simulations/<JOB_ID>/report" \
+  -H "Authorization: Bearer $RIPPLE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rounds":[
+      {"label":"summary","system_prompt":"请用简体中文总结本次模拟结果。","extra_user_context":""}
+    ]
+  }'
+
+# 5) 宿主机直接查看产物
+ls data/ripple-service/ripple_outputs
 ```
 
 #### 方式2：启动时不传 LLM 参数（每次调用时传 `llm_config`，默认不鉴权）
@@ -276,7 +293,7 @@ curl -sS "$BASE_URL/v1/simulations/<JOB_ID>" \
 ```bash
 docker run -d --name ripple-service \
   -p 127.0.0.1:8080:8080 \
-  -v ripple-service-data:/data \
+  -v "$PWD/data/ripple-service:/data" \
   xyplusxy/ripple:v0.2.0
 ```
 
@@ -309,6 +326,15 @@ curl -N "$BASE_URL/v1/simulations/<JOB_ID>/events"
 
 # 3) 查询状态
 curl -sS "$BASE_URL/v1/simulations/<JOB_ID>"
+
+# 4) 生成模拟后解读报告（复用第 1 步请求里的 llm_config）
+curl -sS -X POST "$BASE_URL/v1/simulations/<JOB_ID>/report" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rounds":[
+      {"label":"summary","system_prompt":"请用简体中文总结本次模拟结果。","extra_user_context":""}
+    ]
+  }'
 ```
 
 ### 手工安装（非 Docker）
@@ -445,7 +471,7 @@ python examples/e2e_pmf_fmcg_algorithm_ecommerce.py enhanced
 python examples/e2e_pmf_fmcg_algorithm_ecommerce.py all
 ```
 
-> 💡 所有脚本自动读取 `llm_config.yaml` 配置，输出 JSON 结果文件和 Markdown 压缩日志。使用 `--no-report` 跳过模拟后的 LLM 解读报告生成。
+> 💡 本地直跑脚本会自动读取 `llm_config.yaml`，并输出 JSON 结果文件和 Markdown 压缩日志。服务版 `examples/e2e_simulation_xiaohongshu_service.py` 则只调用 HTTP+SSE 接口，报告由服务端生成，产物默认落在 `data/ripple-service/ripple_outputs/`。
 
 ### 社交媒体模拟
 

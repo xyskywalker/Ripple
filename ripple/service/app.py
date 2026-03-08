@@ -4,10 +4,20 @@ import json
 from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse
+
+from ripple.llm.router import ConfigurationError
 
 from .auth import require_bearer
 from .job_manager import JobManager
+from .reporting import (
+    extract_request_llm_config,
+    generate_report_from_result,
+    load_compact_log_text,
+    load_job_request,
+    load_job_result,
+    load_output_json_document,
+)
 from .settings import ServiceSettings
 
 
@@ -19,9 +29,24 @@ def _load_json(text: str | None) -> dict | None:
 
 def create_app() -> FastAPI:
     settings = ServiceSettings.from_env()
-    manager = JobManager(db_path=settings.db_path)
+    manager = JobManager(db_path=settings.db_path, output_dir=settings.output_dir)
 
     app = FastAPI(title="Ripple Service")
+
+    def _get_row(job_id: str) -> dict:
+        try:
+            return manager.get_job(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="job not found") from exc
+
+    def _get_completed_result(job_id: str) -> tuple[dict, dict]:
+        row = _get_row(job_id)
+        if row["status"] != "completed":
+            raise HTTPException(status_code=409, detail=f"job not completed: status={row['status']}")
+        result = load_job_result(row)
+        if not result:
+            raise HTTPException(status_code=409, detail="job result unavailable")
+        return row, result
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -46,10 +71,7 @@ def create_app() -> FastAPI:
 
     @app.get("/v1/simulations/{job_id}", dependencies=[Depends(require_bearer)])
     def get_simulation(job_id: str) -> dict:
-        try:
-            row = manager.get_job(job_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="job not found") from exc
+        row = _get_row(job_id)
         return {
             "job_id": row["job_id"],
             "status": row["status"],
@@ -58,12 +80,66 @@ def create_app() -> FastAPI:
             "error": _load_json(row["error_json"]),
         }
 
+    @app.get("/v1/simulations/{job_id}/artifacts/compact-log", dependencies=[Depends(require_bearer)])
+    def get_compact_log(job_id: str) -> PlainTextResponse:
+        _, result = _get_completed_result(job_id)
+        try:
+            content = load_compact_log_text(result)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return PlainTextResponse(content, media_type="text/plain")
+
+    @app.get("/v1/simulations/{job_id}/artifacts/output-json", dependencies=[Depends(require_bearer)])
+    def get_output_json(job_id: str) -> dict:
+        _, result = _get_completed_result(job_id)
+        try:
+            return load_output_json_document(result)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/v1/simulations/{job_id}/report", dependencies=[Depends(require_bearer)])
+    async def generate_report(job_id: str, payload: dict) -> dict:
+        rounds = payload.get("rounds")
+        if not isinstance(rounds, list) or not rounds:
+            raise HTTPException(status_code=422, detail="rounds is required")
+
+        role = str(payload.get("role") or "omniscient")
+        max_llm_calls_raw = payload.get("max_llm_calls", 10)
+        try:
+            max_llm_calls = int(max_llm_calls_raw)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="max_llm_calls must be an integer") from exc
+
+        row, result = _get_completed_result(job_id)
+        request = load_job_request(row) or {}
+        llm_config = extract_request_llm_config(request)
+
+        try:
+            report = await generate_report_from_result(
+                result=result,
+                rounds=rounds,
+                role=role,
+                max_llm_calls=max_llm_calls,
+                config_file=settings.llm_config_path,
+                llm_config=llm_config,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except ConfigurationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+        if not report:
+            raise HTTPException(status_code=500, detail="report generation failed")
+        return {
+            "job_id": job_id,
+            "report": report,
+        }
+
     @app.get("/v1/simulations/{job_id}/events", dependencies=[Depends(require_bearer)])
     async def stream_events(job_id: str):
-        try:
-            manager.get_job(job_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="job not found") from exc
+        _get_row(job_id)
 
         async def event_stream():
             q = manager.event_bus.subscribe(job_id)
