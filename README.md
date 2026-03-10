@@ -13,6 +13,11 @@
 </p>
 
 <p align="center">
+  <a href="https://x.com/_xyplus_"><img src="https://img.shields.io/badge/X-@__xyplus__-black?logo=x&logoColor=white" alt="X (Twitter)"></a>
+  <a href="mailto:xypluslab@gmail.com"><img src="https://img.shields.io/badge/email-xypluslab%40gmail.com-blue?logo=gmail&logoColor=white" alt="Email"></a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/version-0.2.0-green" alt="Version">
   <img src="https://img.shields.io/badge/tests-227%20passed-brightgreen" alt="Tests">
@@ -22,6 +27,12 @@
 </p>
 
 ---
+
+> **为什么值得关注**
+>
+> - **CAS 原生预测**：将传播、反馈、相变等复杂系统机制直接编码进引擎
+> - **更低成本**：以群体模拟替代逐人模拟，相比 OASIS 将 LLM 调用量压缩约 **3 个数量级**
+> - **更现实的结论**：通过 Tribunal 多专家结构化辩论，主动校准 LLM 常见的乐观偏误
 
 <details>
 <summary><strong>📑 目录</strong></summary>
@@ -51,9 +62,11 @@
 
 ## 🌊 项目简介
 
-**Ripple（涟漪）** 是一个基于 **复杂自适应系统（Complex Adaptive System, CAS）理论** 构建的 **Agent-Native 通用人类社会行为预测引擎**。
+**Ripple（涟漪）** 是一个以 **复杂自适应系统（Complex Adaptive System, CAS）理论** 为底座构建的 **Agent-Native 通用人类社会行为预测引擎**。
 
-社会中的信息传播犹如水面的涟漪——一颗石子投入水中，波纹从中心向外扩散，与其他波纹相遇时产生叠加、干涉、共振或抵消。Ripple 将这一物理直觉编码为可计算的引擎：**信号在智能体间传播能量，产生涌现、非线性放大、反馈环和相变**——这也正是本项目名称的由来。
+它不依赖手写传播规则，而是让智能体在上下文中自主判断、相互作用，再由系统观测信号如何扩散、叠加、衰减，并最终触发宏观层面的结构变化。
+
+在 Ripple 中，社会信息传播被视作水面的涟漪——一颗石子投入水中，波纹向外扩散，并在相遇时产生叠加、干涉、共振或抵消。Ripple 将这种物理直觉转化为可计算过程：**信号在智能体之间传递能量，进而涌现出非线性放大、反馈环和相变**——这也正是本项目名称的由来。
 
 Ripple 目前已实现**两个应用场景**：
 

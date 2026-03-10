@@ -28,6 +28,12 @@
 
 ---
 
+> **Why Ripple matters**
+>
+> - **CAS-native prediction**: models propagation, feedback loops, and phase transitions directly in the engine
+> - **Radically lower cost**: replaces per-person simulation with population modeling, reducing LLM calls by ~**3 orders of magnitude** vs. OASIS
+> - **More grounded outputs**: uses Tribunal-style multi-expert debate to actively counter common LLM optimism bias
+
 <details>
 <summary><strong>📑 Table of Contents</strong></summary>
 
@@ -58,7 +64,9 @@
 
 **Ripple** is an **Agent-Native universal human social behavior prediction engine** built on **Complex Adaptive System (CAS) theory**.
 
-Information propagation in society is like ripples on water — a stone drops in, waves spread outward from the center, and when they meet other waves, they superpose, interfere, resonate, or cancel out. Ripple encodes this physical intuition into a computable engine: **signals propagate energy between agents, producing emergence, non-linear amplification, feedback loops, and phase transitions** — which is exactly how this project got its name.
+Instead of relying on hand-written diffusion rules, Ripple lets agents make context-aware decisions and interact with one another, while the engine observes how signals spread, interfere, decay, and trigger macro-level shifts.
+
+In Ripple, information propagation is treated like ripples on water — a stone drops in, waves spread outward from the center, and when they meet, they superpose, interfere, resonate, or cancel out. Ripple turns that intuition into a computable process: **signals transfer energy across agents, producing emergence, non-linear amplification, feedback loops, and phase transitions** — which is exactly how the project got its name.
 
 Ripple currently implements **two application scenarios**:
 
