@@ -438,7 +438,6 @@ resolve_openclaw_installer() {
 
 install_openclaw_skill_if_possible() {
   local installer_path=""
-  local config_path=""
   local skills_root="${OPENCLAW_SKILLS_DIR:-$HOME/.openclaw/skills}"
   local target_dir="${skills_root}/${OPENCLAW_SKILL_NAME}"
 
@@ -460,24 +459,7 @@ install_openclaw_skill_if_possible() {
     return 0
   fi
 
-  if ! openclaw config set "skills.entries[\"${OPENCLAW_SKILL_NAME}\"].enabled" true >/dev/null 2>&1; then
-    set_openclaw_status "已复制 ${OPENCLAW_SKILL_NAME} 到 ${target_dir}，但未能写入 OpenClaw 配置。"
-    return 0
-  fi
-
-  if ! openclaw config validate --json >/dev/null 2>&1; then
-    set_openclaw_status "已复制 ${OPENCLAW_SKILL_NAME} 到 ${target_dir}，也已更新 OpenClaw 配置，但当前配置校验未通过。"
-    return 0
-  fi
-
-  config_path="$(openclaw config file 2>/dev/null || true)"
-  config_path="$(trim_value "${config_path}")"
-  if [ -n "${config_path}" ]; then
-    set_openclaw_status "已安装 ${OPENCLAW_SKILL_NAME} 到 ${target_dir}，并更新 OpenClaw 配置 ${config_path}。OpenClaw 会热加载配置；为确保新 skill 可见，请新开一个 session。"
-    return 0
-  fi
-
-  set_openclaw_status "已安装 ${OPENCLAW_SKILL_NAME} 到 ${target_dir}，并更新 OpenClaw 配置。OpenClaw 会热加载配置；为确保新 skill 可见，请新开一个 session。"
+  set_openclaw_status "已安装 ${OPENCLAW_SKILL_NAME} 到 ${target_dir}。OpenClaw 会从共享 skills 目录发现它；为确保新 skill 可见，请新开一个 session。"
 }
 
 print_success_message() {
