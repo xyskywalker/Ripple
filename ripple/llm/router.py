@@ -55,7 +55,7 @@ class BudgetState:
     """
 
     total_calls: int = 0
-    max_calls: int = 200  # <= 0 表示不限制 / <= 0 means unlimited
+    max_calls: int = 800  # <= 0 表示不限制 / <= 0 means unlimited
     calls_by_role: Dict[str, int] = field(default_factory=dict)
     # [P1-2] 调用尝试计数 — 包含失败请求，用于成本审计 / Attempt count including failures, for cost audit
     total_attempts: int = 0
@@ -141,7 +141,7 @@ class ModelRouter:
     def __init__(
         self,
         llm_config: Optional[Dict[str, Any]] = None,
-        max_llm_calls: int = 200,
+        max_llm_calls: int = 800,
         config_file: Optional[str] = None,
     ) -> None:
         """初始化路由器。 / Initialize router.

@@ -148,7 +148,7 @@ async def simulate(
     llm_config: Optional[Dict[str, Any]] = None,
     max_waves: Optional[int] = None,
     random_seed: Optional[int] = None,
-    max_llm_calls: int = 200,
+    max_llm_calls: int = 800,
     skill_path: Optional[str] = None,
     config_file: Optional[str] = None,
     output_path: Optional[str] = None,

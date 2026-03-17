@@ -109,7 +109,7 @@ class BudgetState:
     """
 
     total_calls: int = 0
-    max_calls: int = 200  # <= 0 表示不限制 / <= 0 means unlimited
+    max_calls: int = 800  # <= 0 表示不限制 / <= 0 means unlimited
     calls_by_role: Dict[str, int] = field(default_factory=dict)
 
 
@@ -123,7 +123,7 @@ class SimulationConfig:
     max_waves: int = 8
     quiescent_wave_limit: int = 3  # 连续静默轮数停机阈值 / Consecutive quiescent waves before halt [1, max_waves]
     random_seed: Optional[int] = None
-    max_llm_calls: int = 200  # 单次模拟 LLM 调用上限 / Max LLM calls per simulation run
+    max_llm_calls: int = 800  # 单次模拟 LLM 调用上限 / Max LLM calls per simulation run
 
 
 # =============================================================================

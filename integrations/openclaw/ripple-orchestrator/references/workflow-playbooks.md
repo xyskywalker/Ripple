@@ -20,11 +20,12 @@ Use this when Ripple may not be installed or the local environment looks broken.
 6. Write a normalized request JSON file from a template under `assets/request-templates/`.
 7. Run `scripts/validate.sh --input <request-file>` plus any explicit selectors.
 8. If validation is not ready, stop and ask targeted follow-up questions.
-9. If validation is ready, run `scripts/job_run.sh --input <request-file>`.
-10. Return the `job_id` and explicitly say polling will happen every 30 seconds by default.
-11. Poll with `scripts/job_status.sh <job_id>` every 30 seconds until `completed`, `failed`, or `cancelled`.
-12. When terminal, run `scripts/job_result.sh <job_id>`.
-13. If the user asks for process detail, run `scripts/job_log.sh <job_id>`.
+9. If validation is ready but the task looks complex, long-horizon, or high-wave, warn that Ripple only defaults to `max_llm_calls=800` and recommend a larger override before submission.
+10. Run `scripts/job_run.sh --input <request-file>`.
+11. Return the `job_id` and explicitly say polling will happen every 30 seconds by default.
+12. Poll with `scripts/job_status.sh <job_id>` every 30 seconds until `completed`, `failed`, or `cancelled`.
+13. When terminal, run `scripts/job_result.sh <job_id>`.
+14. If the user asks for process detail, run `scripts/job_log.sh <job_id>`.
 
 ## 3. Immediate Status Check
 

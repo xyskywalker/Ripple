@@ -989,6 +989,7 @@ def test_job_run_blocking_persists_completed_job_and_supports_status_list_result
     db_path = tmp_path / "jobs.db"
 
     async def fake_simulate(**kwargs):
+        assert kwargs["max_llm_calls"] == 800
         output_dir = Path(str(kwargs["output_path"]))
         output_dir.mkdir(parents=True, exist_ok=True)
         output_json = output_dir / "run.json"

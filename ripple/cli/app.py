@@ -1484,7 +1484,7 @@ def _fallback_request_schema(skill: LoadedSkill) -> dict[str, Any]:
                     {"path": "simulation_horizon", "tier": "optional", "type": "string", "description": "模拟观察窗口，例如 `48h`、`7d`。", "example": "7d"},
                     {"path": "historical", "tier": "optional", "type": "object", "description": "历史表现、基线数据或先验信息。"},
                     {"path": "max_waves", "tier": "optional", "type": "integer", "description": "传播轮次上限；不传时 CLI 会按预估轮次自动推导安全上限。"},
-                    {"path": "max_llm_calls", "tier": "optional", "type": "integer", "description": "本次任务可使用的最大 LLM 调用次数。"},
+                    {"path": "max_llm_calls", "tier": "optional", "type": "integer", "description": "本次任务可使用的最大 LLM 调用次数。默认 800；复杂任务或较长推演通常需要更高。", "default": 800},
                     {"path": "ensemble_runs", "tier": "optional", "type": "integer", "description": "集成推演次数；默认 1。", "default": 1},
                     {"path": "deliberation_rounds", "tier": "optional", "type": "integer", "description": "合议庭最大轮数；默认 3。", "default": 3},
                     {"path": "random_seed", "tier": "optional", "type": "integer", "description": "随机种子，用于提高结果复现性。"},
@@ -2546,7 +2546,7 @@ def _build_request(
         request["max_waves"] = _coerce_positive_int("max_waves", raw_max_waves)
     if max_llm_calls is not None:
         request["max_llm_calls"] = max_llm_calls
-    request["max_llm_calls"] = _coerce_positive_int("max_llm_calls", request.get("max_llm_calls", 200))
+    request["max_llm_calls"] = _coerce_positive_int("max_llm_calls", request.get("max_llm_calls", 800))
     if ensemble_runs is not None:
         request["ensemble_runs"] = ensemble_runs
     request["ensemble_runs"] = _coerce_positive_int("ensemble_runs", request.get("ensemble_runs", 1))
@@ -4155,7 +4155,10 @@ def job_run(
     ] = None,
     max_llm_calls: Annotated[
         Optional[int],
-        typer.Option("--max-llm-calls", help="本次任务允许的最大 LLM 调用次数上限，用于控制成本与异常循环。"),
+        typer.Option(
+            "--max-llm-calls",
+            help="本次任务允许的最大 LLM 调用次数上限。默认 800；复杂任务或较长推演通常需要更高，用于控制成本与异常循环。",
+        ),
     ] = None,
     ensemble_runs: Annotated[
         Optional[int],

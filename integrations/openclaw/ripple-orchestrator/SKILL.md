@@ -39,6 +39,7 @@ Do not confuse this skill with Ripple's internal domain packages under `skills/`
 9. If the user explicitly provides LLM settings, you may run `scripts/llm_set.sh ...` and then `scripts/llm_test.sh`.
 10. `domain dump` is a heavy fallback for deep domain background, not the default discovery path.
 11. `job delete` and `job clean` are destructive. Use them only on explicit user intent.
+12. Ripple jobs default to `max_llm_calls=800`. For complex simulations, long horizons, or jobs with many waves / deeper deliberation, proactively warn the user to raise this value, otherwise the job may fail after hitting the LLM budget limit.
 
 This skill must preserve the full user-facing Ripple CLI surface for OpenClaw, including `domain schema`, `domain example`, `domain dump`, `job cancel`, `job delete`, and `job clean`.
 
@@ -54,10 +55,11 @@ This skill must preserve the full user-facing Ripple CLI surface for OpenClaw, i
 6. Run `scripts/validate.sh --input <request-file>` plus any explicit selectors such as `--skill`, `--platform`, `--channel`, or `--vertical`.
 7. If validation is not ready, do not submit the job. Ask targeted follow-up questions and rewrite the request.
 8. If validation passes, run `scripts/job_run.sh --input <request-file>` plus any explicit runtime overrides.
-9. Report the returned `job_id` and tell the user that polling will happen every 30 seconds by default. Also mention that they can ask for an immediate status check at any time.
-10. Poll with `scripts/job_status.sh <job_id>` every 30 seconds until the job reaches `completed`, `failed`, or `cancelled`.
-11. On completion, run `scripts/job_result.sh <job_id>`.
-12. If the user asks for process detail or wants to inspect how the result was produced, run `scripts/job_log.sh <job_id>`.
+9. If the task looks complex, long-running, or wave-heavy, explicitly recommend a larger `--max-llm-calls` than the default 800 before submission.
+10. Report the returned `job_id` and tell the user that polling will happen every 30 seconds by default. Also mention that they can ask for an immediate status check at any time.
+11. Poll with `scripts/job_status.sh <job_id>` every 30 seconds until the job reaches `completed`, `failed`, or `cancelled`.
+12. On completion, run `scripts/job_result.sh <job_id>`.
+13. If the user asks for process detail or wants to inspect how the result was produced, run `scripts/job_log.sh <job_id>`.
 
 ### Historical Or Control Intents
 

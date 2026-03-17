@@ -74,3 +74,10 @@ Wrappers preserve extra CLI flags. This is how OpenClaw can still pass:
 - `--offset`
 - `--summary`
 - runtime controls such as `--max-waves`, `--max-llm-calls`, `--ensemble-runs`, `--deliberation-rounds`, `--report`, and `--simulation-horizon`
+
+## LLM Budget Reminder
+
+- Ripple defaults to `--max-llm-calls 800` when the user does not provide an override.
+- This is a shared per-job budget across all roles, not a per-role allowance.
+- Complex jobs, longer simulation horizons, larger wave counts, or deeper deliberation can exceed 800.
+- When a task looks heavy, warn the user before submission and recommend a higher `--max-llm-calls`, otherwise the job may fail due to budget exhaustion.
