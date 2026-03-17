@@ -302,8 +302,8 @@ def test_llm_show_masks_api_key(tmp_path: Path) -> None:
     assert payload["default"]["api_key"] != "sk-demo-value"
 
 
-def test_llm_setup_prefills_existing_default_and_preserves_other_sections(tmp_path: Path) -> None:
-    """llm setup 应复用已有 _default，并保留其他配置段。 / llm setup should reuse the existing _default values and preserve other sections."""
+def test_llm_setup_prefills_existing_default_and_sanitizes_role_sections(tmp_path: Path) -> None:
+    """llm setup 应复用已有 _default，并清理角色级模型覆盖。 / llm setup should reuse _default and sanitize role-level model overrides."""
     from ripple.cli.app import app
 
     config_path = tmp_path / "llm_config.yaml"
@@ -317,7 +317,13 @@ def test_llm_setup_prefills_existing_default_and_preserves_other_sections(tmp_pa
         "  temperature: 0.3\n"
         "  max_retries: 5\n"
         "omniscient:\n"
-        "  temperature: 0.9\n",
+        "  model_name: stale-omni-model\n"
+        "  url: https://stale.example/v1\n"
+        "  temperature: 0.9\n"
+        "star:\n"
+        "  model_name: stale-star-model\n"
+        "_degradation:\n"
+        "  omniscient: stale-fallback-model\n",
         encoding="utf-8",
     )
 
@@ -350,7 +356,58 @@ def test_llm_setup_prefills_existing_default_and_preserves_other_sections(tmp_pa
     assert loaded["_default"]["api_mode"] == "responses"
     assert loaded["_default"]["temperature"] == 0.3
     assert loaded["_default"]["max_retries"] == 5
-    assert loaded["omniscient"]["temperature"] == 0.9
+    assert loaded["omniscient"] == {"temperature": 0.9}
+    assert loaded["star"] == {"temperature": 0.8}
+    assert loaded["sea"] == {"temperature": 0.5}
+    assert "_degradation" not in loaded
+
+
+def test_llm_set_sanitizes_role_sections_and_removes_degradation(tmp_path: Path) -> None:
+    """llm set 应清理旧的角色级模型覆盖与降级配置。 / llm set should sanitize stale role overrides and degradation config."""
+    from ripple.cli.app import app
+
+    config_path = tmp_path / "llm_config.yaml"
+    config_path.write_text(
+        "_default:\n"
+        "  model_platform: openai\n"
+        "  model_name: old-model\n"
+        "  api_key: sk-old-secret\n"
+        "  url: https://old.example/v1\n"
+        "  api_mode: responses\n"
+        "  temperature: 0.4\n"
+        "  max_retries: 2\n"
+        "omniscient:\n"
+        "  model_name: should-be-removed\n"
+        "  temperature: 0.95\n"
+        "sea:\n"
+        "  api_key: should-be-removed\n"
+        "_degradation:\n"
+        "  star: old-fallback\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "llm",
+            "set",
+            "--config",
+            str(config_path),
+            "--model",
+            "new-model",
+            "--temperature",
+            "0.6",
+        ],
+    )
+
+    assert result.exit_code == 0
+    loaded = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    assert loaded["_default"]["model_name"] == "new-model"
+    assert loaded["_default"]["temperature"] == 0.6
+    assert loaded["omniscient"] == {"temperature": 0.95}
+    assert loaded["star"] == {"temperature": 0.8}
+    assert loaded["sea"] == {"temperature": 0.5}
+    assert "_degradation" not in loaded
 
 
 @pytest.mark.parametrize(
@@ -416,6 +473,38 @@ def test_doctor_fails_when_runtime_dependency_is_missing(
     payload = _read_json(result)
     assert payload["checks"]["dependencies"]["ok"] is False
     assert payload["checks"]["dependencies"]["missing"] == ["rich"]
+
+
+def test_doctor_requires_default_llm_config_section(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """doctor 应要求 `_default` 段存在。 / doctor should require the `_default` config section."""
+    from ripple.cli.app import app
+
+    config_path = tmp_path / "llm_config.yaml"
+    config_path.write_text(
+        "omniscient:\n"
+        "  model_name: stale-omni-model\n",
+        encoding="utf-8",
+    )
+    db_path = tmp_path / "ripple.db"
+
+    monkeypatch.setattr(
+        "ripple.cli.app._check_runtime_dependencies",
+        lambda: {"ok": True, "missing": [], "checked": []},
+        raising=False,
+    )
+
+    result = runner.invoke(
+        app,
+        ["doctor", "--json", "--config", str(config_path), "--db", str(db_path)],
+    )
+
+    assert result.exit_code == 1
+    payload = _read_json(result)
+    assert payload["checks"]["llm_config"]["ok"] is False
+    assert "_default" in payload["checks"]["llm_config"]["message"]
 
 
 def test_domain_commands_include_use_when_and_dump_contents(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -825,10 +914,16 @@ def test_llm_test_uses_default_model_via_helper(tmp_path: Path, monkeypatch: pyt
     from ripple.cli.app import app
 
     config_path = _write_config(tmp_path)
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8")
+        + "omniscient:\n"
+        + "  model_name: should-not-be-used\n",
+        encoding="utf-8",
+    )
 
     async def fake_call_text_llm(*, config_file, system_prompt, user_prompt, role="omniscient", max_llm_calls=5):
         assert str(config_path) == config_file
-        assert role == "omniscient"
+        assert role == "_default"
         assert "Reply with: ok" in user_prompt
         return "ok"
 

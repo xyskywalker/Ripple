@@ -227,6 +227,11 @@ _RESPONSE_TYPE_LABELS = {
     "error": "异常降级",
     "unknown": "未知响应",
 }
+_ROLE_TEMPERATURE_DEFAULTS = {
+    "omniscient": 0.7,
+    "star": 0.8,
+    "sea": 0.5,
+}
 _TRIBUNAL_ROLE_LABELS = {
     "PropagationDynamicist": "传播动力学审查员",
     "PlatformEcologist": "平台生态审查员",
@@ -2299,6 +2304,27 @@ def _load_default_config(path: Path) -> dict[str, Any]:
     return dict(default)
 
 
+def _sanitize_llm_role_sections(data: dict[str, Any]) -> dict[str, Any]:
+    sanitized = dict(data)
+
+    for role, fallback_temperature in _ROLE_TEMPERATURE_DEFAULTS.items():
+        existing = sanitized.get(role)
+        temperature = fallback_temperature
+
+        if isinstance(existing, dict):
+            raw_temperature = existing.get("temperature")
+            if raw_temperature not in (None, ""):
+                try:
+                    temperature = float(raw_temperature)
+                except (TypeError, ValueError):
+                    temperature = fallback_temperature
+
+        sanitized[role] = {"temperature": temperature}
+
+    sanitized.pop("_degradation", None)
+    return sanitized
+
+
 def _ensure_default_model_config(config_file: str) -> None:
     path = Path(config_file)
     if not path.exists():
@@ -2310,7 +2336,7 @@ def _ensure_default_model_config(config_file: str) -> None:
         )
     try:
         loader = LLMConfigLoader(config_file=config_file)
-        loader.resolve("omniscient")
+        loader.resolve("_default")
     except ConfigurationError as exc:
         raise CLIError(
             "CONFIG_INVALID",
@@ -3594,6 +3620,7 @@ def llm_set(
     try:
         path = Path(_resolve_config_path(config_path))
         data = _load_yaml_document(path)
+        data = _sanitize_llm_role_sections(data)
         default = data.get("_default")
         if not isinstance(default, dict):
             default = {}
@@ -3649,6 +3676,7 @@ def llm_setup(
     try:
         path = Path(_resolve_config_path(config_path))
         data = _load_yaml_document(path, allow_missing=True)
+        data = _sanitize_llm_role_sections(data)
         existing_default = data.get("_default")
         if not isinstance(existing_default, dict):
             existing_default = {}
@@ -3764,7 +3792,7 @@ def llm_test(
                 config_file=config_file,
                 system_prompt="You are a connectivity probe.",
                 user_prompt="Reply with: ok",
-                role="omniscient",
+                role="_default",
                 max_llm_calls=1,
             )
         )

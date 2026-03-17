@@ -72,17 +72,14 @@ _default:
 
 # Omniscient Agent — 全视者（核心编排，需要高智能模型） / Omniscient (core orchestration, needs high-intelligence model)
 omniscient:
-  model_name: claude-opus-4-6
   temperature: 0.7
 
 # Star Agent — 质量优先（KOL 决策需要高智能模型） / Quality-first (KOL decisions need high-intelligence model)
 star:
-  model_name: claude-opus-4-6
   temperature: 0.8                         # Star 可适当提高创造性 / Higher creativity for Star
 
 # Sea Agent — 成本优先（群体行为可用轻量模型） / Cost-first (crowd behavior can use lightweight model)
 sea:
-  model_name: claude-haiku
   temperature: 0.5                         # Sea 偏稳定 / More stable for Sea
 
 # ---------------------------------------------------------------------------
@@ -118,8 +115,8 @@ _embedding:
 # expensive roles to cheaper models. Unconfigured roles won't degrade.
 # ---------------------------------------------------------------------------
 _degradation:
-  omniscient: claude-sonnet-4-20250514     # Omniscient: Opus → Sonnet（降级 / downgrade）
-  star: claude-sonnet-4-20250514           # Star: Opus → Sonnet（降级 / downgrade）
+  omniscient:      # Omniscient: Opus → Sonnet（降级 / downgrade）
+  star:            # Star: Opus → Sonnet（降级 / downgrade）
 
 
 # =============================================================================
