@@ -48,11 +48,11 @@
 # At minimum, model_platform and model_name must be specified.
 # ---------------------------------------------------------------------------
 _default:
-  model_platform: anthropic
-  model_name: claude-sonnet-4-20250514     # 全局默认模型 / Global default model
-  api_key: ${ANTHROPIC_API_KEY}            # 从环境变量读取 / Read from env var
-  # url: https://api.anthropic.com         # 一般不需要显式设置 / Usually not needed explicitly
-  # api_mode: anthropic                    # 自动推断，可省略 / Auto-inferred, can be omitted
+  model_platform: openai
+  model_name: doubao-seed-2-0-lite-260215     # 全局默认模型 / Global default model
+  api_key: sample-apikey
+  url: https://ark.cn-beijing.volces.com/api/v3/responses
+  api_mode: responses                    # 自动推断，可省略 / Auto-inferred, can be omitted
   temperature: 0.7
   max_retries: 3
 
