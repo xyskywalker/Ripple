@@ -1,0 +1,18 @@
+title: 小红书基础内容传播模拟
+summary: 只提供标题、正文和平台画像的基础示例，适合首次试跑和快速判断内容方向。
+use_when: 首次验证 CLI 是否可用，或快速测试一篇内容在小红书上的基础传播走势。
+tags:
+  - basic
+  - quickstart
+  - xiaohongshu
+command:
+  skill: social-media
+  platform: xiaohongshu
+  output_path: ./outputs
+  simulation_horizon: 48h
+request:
+  event:
+    title: 春季敏感肌修护笔记
+    body: 换季脸红、刺痛、起皮反复出现，我最近把护肤流程改成精简修护三步，稳定很多。这篇想分享我如何判断屏障受损、怎么选修护面霜、以及哪些成分我会主动避开。
+    content_type: note
+

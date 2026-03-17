@@ -2,8 +2,8 @@
 # =============================================================================
 # Skill 发现、加载与管理。 / Skill discovery, loading & management.
 #
-# Skill 仅提供领域画像（domain_profile）和 Prompt 模板。
-# / Skills only provide domain profiles and prompt templates.
+# Skill 仅提供领域画像（domain_profile）、Prompt 模板和报告模板。
+# / Skills provide domain profiles, prompt templates, and report templates.
 # CAS 参数由全视者 Agent 在运行时动态决定，不再硬编码。
 # / CAS params are dynamically decided by Omniscient at runtime, not hardcoded.
 # 生命周期：discover -> select -> load -> freeze
@@ -69,14 +69,37 @@ class LoadedSkill:
     # 平台画像（约定扫描 {skill_dir}/platforms/*.md） / Platform profiles (convention: scan {skill_dir}/platforms/*.md)
     platform_profiles: Dict[str, str] = field(default_factory=dict)
 
+    # 平台展示名映射（英文 key -> 中文标签） / Platform display labels (english key -> Chinese label)
+    platform_labels: Dict[str, str] = field(default_factory=dict)
+
     # 评分 rubric（PMF 等领域使用） / Scoring rubrics (used by PMF validation etc.)
     rubrics: Dict[str, str] = field(default_factory=dict)
+
+    # 报告模板配置（约定扫描 {skill_dir}/reports/*.yml|*.yaml）
+    # / Report profile configs (convention: scan {skill_dir}/reports/*.yml|*.yaml)
+    report_profiles: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+
+    # 输入 schema 配置（约定读取 {skill_dir}/request-schema.yaml）
+    # / Request schema config (convention: read {skill_dir}/request-schema.yaml)
+    request_schema: Dict[str, Any] = field(default_factory=dict)
+    request_schema_path: str = ""
+
+    # 示例配置（约定扫描 {skill_dir}/examples/*.yml|*.yaml）
+    # / Example configs (convention: scan {skill_dir}/examples/*.yml|*.yaml)
+    example_profiles: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    example_paths: Dict[str, str] = field(default_factory=dict)
 
     # 渠道画像（约定扫描 {skill_dir}/channels/*.md） / Channel profiles (convention: scan {skill_dir}/channels/*.md)
     channel_profiles: Dict[str, str] = field(default_factory=dict)
 
+    # 渠道展示名映射（英文 key -> 中文标签） / Channel display labels (english key -> Chinese label)
+    channel_labels: Dict[str, str] = field(default_factory=dict)
+
     # 垂直领域画像（约定扫描 {skill_dir}/verticals/*.md） / Vertical profiles (convention: scan {skill_dir}/verticals/*.md)
     vertical_profiles: Dict[str, str] = field(default_factory=dict)
+
+    # 垂直领域展示名映射（英文 key -> 中文标签） / Vertical display labels (english key -> Chinese label)
+    vertical_labels: Dict[str, str] = field(default_factory=dict)
 
     # 原始 frontmatter 元数据 / Raw frontmatter metadata
     meta: Dict[str, Any] = field(default_factory=dict)
@@ -125,6 +148,58 @@ class SkillManager:
         for subdir in self._HOME_SEARCH_DIRS:
             paths.append(home / subdir)
         return paths
+
+    def _example_schema_error(self, skill_name: str, example_file: Path, message: str) -> SkillValidationError:
+        """构造 example schema 错误。 / Build a structured example schema validation error."""
+        return SkillValidationError(
+            SKILL_SCHEMA_INVALID,
+            f"Skill `{skill_name}` 的示例文件 `{example_file.as_posix()}` 无效：{message}",
+        )
+
+    def _validate_example_profile(
+        self,
+        *,
+        skill_name: str,
+        example_file: Path,
+        payload: Dict[str, Any],
+    ) -> None:
+        """校验 example 文件结构。 / Validate example file structure."""
+        required_text_fields = ("title", "summary", "use_when")
+        for field_name in required_text_fields:
+            value = payload.get(field_name)
+            if not isinstance(value, str) or not value.strip():
+                raise self._example_schema_error(
+                    skill_name,
+                    example_file,
+                    f"字段 `{field_name}` 必须是非空字符串。",
+                )
+
+        command = payload.get("command")
+        if not isinstance(command, dict) or not command:
+            raise self._example_schema_error(
+                skill_name,
+                example_file,
+                "字段 `command` 必须是非空对象。",
+            )
+
+        request = payload.get("request")
+        if not isinstance(request, dict) or not request:
+            raise self._example_schema_error(
+                skill_name,
+                example_file,
+                "字段 `request` 必须是非空对象。",
+            )
+
+        tags = payload.get("tags")
+        if tags is not None and (
+            not isinstance(tags, list)
+            or any(not isinstance(item, str) or not item.strip() for item in tags)
+        ):
+            raise self._example_schema_error(
+                skill_name,
+                example_file,
+                "字段 `tags` 若存在，必须是非空字符串数组。",
+            )
 
     # -------------------------------------------------------------------------
     # discover — 扫描目录查找 SKILL.md / Scan directories for SKILL.md
@@ -295,6 +370,87 @@ class SkillManager:
                 rubrics[rubric_name] = rf.read_text(encoding="utf-8")
                 logger.info("加载评分 rubric: %s", rubric_name)
 
+        # 加载 report profiles（约定优于配置） / Load report profiles (convention over configuration)
+        report_profiles: Dict[str, Dict[str, Any]] = {}
+        reports_dir = skill_dir / "reports"
+        if reports_dir.is_dir():
+            for ext in ("*.yaml", "*.yml"):
+                for pf in sorted(reports_dir.glob(ext)):
+                    if pf.name.startswith("."):
+                        continue
+                    profile_name = pf.stem
+                    try:
+                        loaded_profile = yaml.safe_load(pf.read_text(encoding="utf-8")) or {}
+                    except yaml.YAMLError as exc:
+                        logger.warning("加载报告模板失败: %s — %s", pf, exc)
+                        continue
+                    if not isinstance(loaded_profile, dict):
+                        logger.warning("报告模板必须是 YAML 字典，已跳过: %s", pf)
+                        continue
+                    report_profiles[profile_name] = loaded_profile
+                    logger.info("加载报告模板: %s", profile_name)
+
+        # 加载 request schema（约定优于配置） / Load request schema (convention over configuration)
+        request_schema: Dict[str, Any] = {}
+        request_schema_path = ""
+        schema_rel_path = str(frontmatter.get("request_schema") or "").strip()
+        schema_file: Optional[Path] = None
+        if schema_rel_path:
+            candidate = skill_dir / schema_rel_path
+            if candidate.is_file():
+                schema_file = candidate
+            else:
+                logger.warning("request_schema 文件不存在: %s", candidate)
+        else:
+            candidate = skill_dir / "request-schema.yaml"
+            if candidate.is_file():
+                schema_file = candidate
+        if schema_file is not None:
+            try:
+                loaded_schema = yaml.safe_load(schema_file.read_text(encoding="utf-8")) or {}
+            except yaml.YAMLError as exc:
+                logger.warning("加载 request schema 失败: %s — %s", schema_file, exc)
+            else:
+                if isinstance(loaded_schema, dict):
+                    request_schema = loaded_schema
+                    request_schema_path = str(schema_file)
+                    logger.info("加载输入 schema: %s", schema_file.name)
+                else:
+                    logger.warning("request schema 必须是 YAML 字典，已跳过: %s", schema_file)
+
+        # 加载 examples（约定优于配置） / Load examples (convention over configuration)
+        example_profiles: Dict[str, Dict[str, Any]] = {}
+        example_paths: Dict[str, str] = {}
+        examples_dir = skill_dir / "examples"
+        if examples_dir.is_dir():
+            for ext in ("*.yaml", "*.yml"):
+                for ef in sorted(examples_dir.glob(ext)):
+                    if ef.name.startswith("."):
+                        continue
+                    profile_name = ef.stem
+                    try:
+                        loaded_example = yaml.safe_load(ef.read_text(encoding="utf-8")) or {}
+                    except yaml.YAMLError as exc:
+                        raise self._example_schema_error(
+                            name,
+                            ef.relative_to(skill_dir),
+                            f"YAML 解析失败：{exc}",
+                        ) from exc
+                    if not isinstance(loaded_example, dict):
+                        raise self._example_schema_error(
+                            name,
+                            ef.relative_to(skill_dir),
+                            "YAML 顶层必须是对象（mapping）。",
+                        )
+                    self._validate_example_profile(
+                        skill_name=name,
+                        example_file=ef.relative_to(skill_dir),
+                        payload=loaded_example,
+                    )
+                    example_profiles[profile_name] = loaded_example
+                    example_paths[profile_name] = str(ef)
+                    logger.info("加载领域示例: %s", profile_name)
+
         # 加载 channel profiles（约定优于配置） / Load channel profiles (convention over configuration)
         channel_profiles: Dict[str, str] = {}
         channels_dir = skill_dir / "channels"
@@ -322,6 +478,19 @@ class SkillManager:
         for role, content in prompts.items():
             prompt_hashes[role] = self._compute_prompt_hash(content)
 
+        def _label_map(field_name: str) -> Dict[str, str]:
+            """解析中英文展示标签映射。 / Parse bilingual display label mappings."""
+            raw = frontmatter.get(field_name, {})
+            if not isinstance(raw, dict):
+                return {}
+            labels: Dict[str, str] = {}
+            for key, value in raw.items():
+                key_text = str(key).strip()
+                value_text = str(value).strip()
+                if key_text and value_text:
+                    labels[key_text] = value_text
+            return labels
+
         loaded = LoadedSkill(
             name=name,
             version=frontmatter.get("version", VERSION),
@@ -331,10 +500,20 @@ class SkillManager:
             prompt_hashes=prompt_hashes,
             domain_profile=domain_profile,
             platform_profiles=platform_profiles,
+            platform_labels=_label_map("platform_labels"),
             rubrics=rubrics,
+            report_profiles=report_profiles,
+            request_schema=request_schema,
+            request_schema_path=request_schema_path,
+            example_profiles=example_profiles,
+            example_paths=example_paths,
             channel_profiles=channel_profiles,
+            channel_labels=_label_map("channel_labels"),
             vertical_profiles=vertical_profiles,
-            meta=frontmatter.get("meta", {}),
+            vertical_labels=_label_map("vertical_labels"),
+            # 保留完整 frontmatter，供 CLI 读取 use_when 等元信息。
+            # Keep the full frontmatter so CLI can read use_when and similar metadata.
+            meta=dict(frontmatter),
         )
 
         logger.info(

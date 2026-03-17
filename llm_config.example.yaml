@@ -20,6 +20,12 @@
 # 支持 ${ENV_VAR} 语法引用环境变量，支持 ${VAR:-default} 默认值语法。
 # Supports ${ENV_VAR} syntax for env vars and ${VAR:-default} for defaults.
 #
+# 对人类用户，推荐将 model_platform 仅理解为 3 类：
+# For human users, it is recommended to treat model_platform as only 3 categories:
+#   - openai     — 包括所有 OpenAI 兼容模型与端点 / Includes all OpenAI-compatible models and endpoints
+#   - anthropic  — 包括所有 Anthropic 兼容模型与端点 / Includes all Anthropic-compatible models and endpoints
+#   - bedrock    — AWS Bedrock 原生模式 / Native AWS Bedrock mode
+#
 # api_mode 支持 4 种值： / api_mode supports 4 values:
 #   - chat_completions — 标准 OpenAI Chat Completions 格式（默认） / Standard OpenAI Chat Completions format (default)
 #   - responses        — OpenAI Responses API 格式 / OpenAI Responses API format
@@ -149,10 +155,12 @@ _degradation:
 
 # =============================================================================
 # 高级示例：Azure OpenAI（Chat Completions 模式） / Advanced: Azure OpenAI (Chat Completions mode)
+# 说明：对用户配置层，Azure OpenAI 也建议统一写成 model_platform: openai。
+# Note: for user-facing config, Azure OpenAI is also recommended to use model_platform: openai.
 # =============================================================================
 
 # star:
-#   model_platform: azure
+#   model_platform: openai
 #   model_name: gpt-4o
 #   api_key: ${AZURE_OPENAI_API_KEY}
 #   url: https://your-resource.openai.azure.com/

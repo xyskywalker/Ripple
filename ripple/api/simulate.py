@@ -147,7 +147,7 @@ async def simulate(
     historical: Optional[List[Dict[str, Any]]] = None,
     environment: Optional[Dict[str, Any]] = None,
     llm_config: Optional[Dict[str, Any]] = None,
-    max_waves: int = 8,
+    max_waves: Optional[int] = None,
     random_seed: Optional[int] = None,
     max_llm_calls: int = 200,
     skill_path: Optional[str] = None,
@@ -158,7 +158,7 @@ async def simulate(
     # --- PMF Validation extensions ---
     channel: Optional[str] = None,
     vertical: Optional[str] = None,
-    ensemble_runs: int = 3,
+    ensemble_runs: int = 1,
     deliberation_rounds: int = 3,
     redact_input: bool = False,
 ) -> Dict[str, Any]:
@@ -177,7 +177,9 @@ async def simulate(
                                "model_name": "gpt-4o",
                                "api_key": "sk-xxx",
                                "url": "https://..."}}
-        max_waves: 最大 Wave 数
+        max_waves: 最大 Wave 数；为空时使用运行时安全上限（预估 waves * 3）
+            / Max wave cap; when omitted, runtime falls back to the safety cap
+            (estimated waves * 3).
         random_seed: 随机种子（保留兼容）
         max_llm_calls: 单次模拟的 LLM 调用总次数上限（ensemble 不倍增）
         skill_path: Skill 目录路径（如果提供，跳过搜索）
@@ -193,7 +195,7 @@ async def simulate(
         simulation_horizon: 模拟时间范围（如 "48h"），用于确定性
             wave 数计算。若不传则回退到 LLM 估计的 estimated_total_waves。
         channel: 渠道标识（v0 仅支持 generic/None，自媒体通过 platform 指定）。
-        ensemble_runs: 集成运行次数（默认 3）。共享同一 BudgetState，不倍增预算。
+        ensemble_runs: 集成运行次数（默认 1）。共享同一 BudgetState，不倍增预算。
         deliberation_rounds: 合议庭总轮数（含 Round 1 独立评估），服务端上限 4。
         redact_input: 是否对落盘输入进行脱敏（默认 False）。
 
@@ -373,7 +375,8 @@ async def simulate(
         simulation_input["environment"] = environment
     if simulation_horizon:
         simulation_input["simulation_horizon"] = simulation_horizon
-    simulation_input["max_waves"] = max_waves
+    if max_waves is not None:
+        simulation_input["max_waves"] = max_waves
 
     # 9. 提前生成 run_id 和输出路径，创建增量记录器
     run_id = str(uuid.uuid4())[:8]

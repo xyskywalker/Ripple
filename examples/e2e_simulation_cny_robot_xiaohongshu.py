@@ -26,9 +26,7 @@ from e2e_helpers import (
     setup_logging,
     simulate,
 )
-
-# Reuse social-media report prompts from the main xiaohongshu E2E
-from e2e_simulation_xiaohongshu import _build_report_rounds
+from e2e_xiaohongshu_common import build_report_bundle
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -127,12 +125,15 @@ async def main() -> None:
         simulation_horizon=f"{SIMULATION_HOURS}h",
         ensemble_runs=1,
     )
+    report_rounds, report_role, report_max_calls = build_report_bundle(ACCOUNT, POSTS)
 
     await run_and_interpret(
         "春晚机器人选题",
         coro,
         config_file_path(),
-        report_rounds=_build_report_rounds(ACCOUNT, POSTS),
+        report_rounds=report_rounds,
+        report_role=report_role,
+        report_max_llm_calls=report_max_calls,
         no_report=args.no_report,
     )
 

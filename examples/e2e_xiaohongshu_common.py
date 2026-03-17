@@ -5,7 +5,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from e2e_helpers import ReportRound, format_stats_block
+from e2e_helpers import (
+    ReportRound,
+    build_historical_from_posts,
+    build_source_from_account,
+    load_skill_report_bundle,
+)
 
 PLATFORM = "xiaohongshu"
 SIMULATION_HOURS = 48
@@ -59,93 +64,26 @@ SAMPLE_POSTS: List[Dict[str, Any]] = [
     },
 ]
 
-_SYSTEM_PREFIX = (
-    "你是 Ripple CAS（复杂自适应系统）社交传播模拟引擎的专业分析师。\n"
-    "你的任务是基于模拟引擎输出的结构化数据，生成人类友好的专业解读。\n\n"
-    "【格式规范】\n"
-    "- 一律使用简体中文输出\n"
-    "- 用【】标记章节标题\n"
-    "- 不输出 JSON、代码块或 Markdown 格式，只输出纯文本\n"
-    "- 段落清晰、逻辑连贯，可直接展示给运营人员阅读\n\n"
-    "【Agent 命名规范】\n"
-    "- 带 star_ 前缀的 Agent 显示为「星-」+ 中文描述\n"
-    "- 带 sea_ 前缀的 Agent 显示为「海-」+ 中文描述\n"
-    "- 纯英文 Agent 名称翻译为中文\n\n"
-    "【术语翻译规范】\n"
-    "- 相态：explosion→爆发期, growth→成长期, decline→衰退期, seed→种子期, stable→稳定期\n"
-    "- 响应：amplify→放大传播, absorb→吸收, mutate→变异/二创, create→原创, ignore→忽略, suppress→抑制\n"
-    "- 能量：incoming_ripple_energy→输入能量, outgoing_energy→输出能量\n"
-)
+def build_report_bundle(
+    account: Dict[str, Any] | None = None,
+    historical_posts: List[Dict[str, Any]] | None = None,
+) -> tuple[List[ReportRound], str, int]:
+    """从 skill 加载社交媒体报告模板。 / Load the social-media report bundle from the skill."""
+    request: Dict[str, Any] = {
+        "skill": "social-media",
+        "platform": PLATFORM,
+    }
+    if account:
+        request["source"] = build_source_from_account(account)
+    if historical_posts:
+        request["historical"] = build_historical_from_posts(historical_posts)
+    return load_skill_report_bundle(request)
 
 
 def build_report_rounds(
     account: Dict[str, Any] | None = None,
     historical_posts: List[Dict[str, Any]] | None = None,
 ) -> List[ReportRound]:
-    """Build the 3-round report specification for social-media simulation."""
-    extra_parts: List[str] = []
-    if account:
-        extra_parts.append(
-            f"## 补充：发布账号\n"
-            f"名称={account.get('account_name', '')} "
-            f"简介={account.get('bio', '')} "
-            f"赛道={account.get('main_category', '')} "
-            f"粉丝={account.get('followers_count', 0)} "
-            f"风格={account.get('content_style', '')} "
-            f"受众={account.get('target_audience', '')}"
-        )
-    if historical_posts:
-        stats_text = format_stats_block(historical_posts)
-        if stats_text:
-            extra_parts.append(f"## 补充：历史互动统计\n{stats_text}")
-    extra_context = "\n\n".join(extra_parts)
-
-    return [
-        ReportRound(
-            label="模拟背景与初始环境",
-            system_prompt=_SYSTEM_PREFIX + (
-                "当前任务：撰写解读报告的前两个章节。\n\n"
-                "【模拟背景】（100-150字）\n"
-                "简要回顾本次模拟的背景信息：选题内容、目标平台、"
-                "发布账号的基本画像（如有）、历史数据概况（如有）。\n\n"
-                "【初始环境】（200-300字）\n"
-                "解读全视者在初始化阶段设定的模拟环境：\n"
-                "- 创建了哪些星 Agent 和海 Agent，各自的定位描述\n"
-                "- 动态参数设定（wave 时间窗口、传播衰减等）\n"
-                "- 种子涟漪的内容摘要与初始能量值\n"
-                "- 预估的传播轮数与安全上限\n"
-            ),
-            extra_user_context=extra_context,
-        ),
-        ReportRound(
-            label="传播过程与关键事件",
-            system_prompt=_SYSTEM_PREFIX + (
-                "当前任务：撰写解读报告的中间两个章节。\n\n"
-                "【传播过程回顾】（150-250字）\n"
-                "概述整个涟漪传播过程的全貌：\n"
-                "- 共经历了几轮 wave，整体传播节奏\n"
-                "- 提炼 3-5 个关键节点（首轮破圈、爆发、争议、终止等）\n"
-                "- 引用全视者的全局观测作为总结性判断\n\n"
-                "【关键传播路径】（200-350字）\n"
-                "挑选 2-3 个对传播影响最大的 Agent 深度解读：\n"
-                "- 在哪些 wave 被激活、接收/输出多少能量\n"
-                "- 做了什么类型的响应、对传播态势的关键作用\n"
-            ),
-        ),
-        ReportRound(
-            label="数据预测与运营建议",
-            system_prompt=_SYSTEM_PREFIX + (
-                "当前任务：撰写解读报告的最后三个章节。\n\n"
-                "【关键时间点解读】（150-250字）\n"
-                "解读 2-3 个最重要的时间节点：涌现现象、相变触发、传播分叉。\n\n"
-                "【数据预测】（150-250字）\n"
-                "输出含置信度描述的关键指标预测：\n"
-                "- 曝光量、互动总量、收藏、评论、转发、涨粉等预估区间\n"
-                "- 爆款概率判断与核心假设条件\n\n"
-                "【运营建议】（200-300字）\n"
-                "3-5 条具体可落地的运营优化建议：\n"
-                "- 内容优化方向、发布时机、评论区运营、风险规避、系列化建议\n"
-            ),
-            extra_user_context=extra_context,
-        ),
-    ]
+    """兼容旧调用，仅返回轮次。 / Backward-compatible wrapper returning only rounds."""
+    rounds, _, _ = build_report_bundle(account, historical_posts)
+    return rounds

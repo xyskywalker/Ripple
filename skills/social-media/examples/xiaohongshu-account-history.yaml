@@ -1,0 +1,33 @@
+title: 小红书增强传播模拟（账号 + 历史）
+summary: 在基础内容上补充账号画像和历史数据，更适合评估冷启动能力、互动边界和潜在破圈可能。
+use_when: 你已经有明确的小红书账号定位，且希望让 Agent 结合历史表现给出更稳的传播预判时使用。
+tags:
+  - enhanced
+  - xiaohongshu
+  - account-history
+command:
+  skill: social-media
+  platform: xiaohongshu
+  output_path: ./outputs
+  simulation_horizon: 72h
+request:
+  event:
+    title: 新号做敏感肌修护内容，能不能在 72 小时内出一篇小爆文？
+    body: 这是一篇针对春季敏感肌人群的种草笔记，核心信息是“屏障修护优先于猛刷酸”，内容形式为经验分享 + 产品搭配建议，希望看完的人愿意收藏并留言交流。
+    summary: 敏感肌修护经验分享，强调精简护肤和屏障优先。
+    content_type: note
+  source:
+    author_profile: 新起号的护肤垂类账号，粉丝主要是 22-32 岁关注成分党和修护需求的一二线女性。
+    account_name: 敏感肌修护观察室
+    bio: 分享成分分析、修护经验和换季护肤避坑
+    target_audience: 敏感肌、成分党、换季修护人群
+    followers_count: 1800
+    posts_count: 16
+    verification_status: personal
+    summary: 账号定位为敏感肌护肤垂类，粉丝数 1800，内容以成分解析和修护经验为主。
+  historical:
+    baseline_notes:
+      - 近 10 篇笔记平均收藏率高于评论率
+      - 涉及“换季修护”关键词的内容表现明显好于“产品测评”
+      - 发布后 6 小时内的收藏增长通常决定最终表现上限
+

@@ -47,6 +47,15 @@ class ProgressEvent:
     detail: Optional[Dict[str, Any]] = None
 
 
+@dataclass
+class ReportRound:
+    """报告轮次规范。 / Report round specification."""
+
+    label: str
+    system_prompt: str
+    extra_user_context: str = ""
+
+
 async def simulate(*args, **kwargs):
     """Lazy import wrapper so service-only scripts don't require local ripple source."""
     from ripple.api.simulate import simulate as ripple_simulate
@@ -742,14 +751,6 @@ async def _call_llm_from_config_data(
 # Multi-round LLM report generation
 # =============================================================================
 
-@dataclass
-class ReportRound:
-    """Specification for one round of LLM interpretation."""
-    label: str
-    system_prompt: str
-    extra_user_context: str = ""  # appended to log_text as user message
-
-
 async def generate_report(
     result: Dict[str, Any],
     config_file: Optional[str],
@@ -757,50 +758,39 @@ async def generate_report(
     role: str = "omniscient",
     max_llm_calls: int = 10,
 ) -> Optional[str]:
-    """Run *rounds* LLM calls sequentially, each fed the simulation log.
+    """共享核心库报告生成器。 / Delegate to the shared core report generator."""
+    from ripple.reporting import generate_report_from_result
 
-    Returns the concatenated report text, or None if all rounds fail.
-    """
-    log_text = load_simulation_log(result)
-    if not log_text:
-        return None
+    return await generate_report_from_result(
+        result=result,
+        rounds=[
+            {
+                "label": round_spec.label,
+                "system_prompt": round_spec.system_prompt,
+                "extra_user_context": round_spec.extra_user_context,
+            }
+            for round_spec in rounds
+        ],
+        role=role,
+        max_llm_calls=max_llm_calls,
+        config_file=config_file,
+    )
 
-    config_data = _load_report_config_data(config_file)
-    if not config_data:
-        logger.warning("未找到可用 llm_config，无法生成报告")
-        return None
 
-    router = None
-    router_cls = _load_model_router_class()
-    if router_cls is not None:
-        try:
-            router = router_cls(llm_config=config_data, max_llm_calls=max_llm_calls)
-        except Exception as exc:
-            logger.warning("创建 LLM 路由器失败，转为 fallback 直连: %s", exc)
-            router = None
+def load_skill_report_bundle(request: Dict[str, Any]) -> tuple[List[ReportRound], str, int]:
+    """从 Skill 加载报告模板。 / Load the report template bundle from the skill."""
+    from ripple.reporting import build_skill_report_profile
 
-    parts: List[str] = []
-    for i, rd in enumerate(rounds, 1):
-        logger.info("解读报告 — 第 %d/%d 轮：%s", i, len(rounds), rd.label)
-        user_msg = log_text
-        if rd.extra_user_context:
-            user_msg += "\n\n" + rd.extra_user_context
-        try:
-            if router is not None:
-                text = await call_llm(router, role, rd.system_prompt, user_msg)
-            else:
-                text = await _call_llm_from_config_data(
-                    config_data,
-                    role,
-                    rd.system_prompt,
-                    user_msg,
-                )
-            if text:
-                parts.append(text)
-        except Exception as exc:
-            logger.warning("第%d轮解读失败: %s", i, exc)
-
-    return "\n\n".join(parts) if parts else None
+    profile = build_skill_report_profile(request=request)
+    rounds = [
+        ReportRound(
+            label=round_spec.label,
+            system_prompt=round_spec.system_prompt,
+            extra_user_context=round_spec.extra_user_context,
+        )
+        for round_spec in profile.rounds
+    ]
+    return rounds, profile.role, profile.max_llm_calls
 
 
 
@@ -857,6 +847,8 @@ async def run_and_interpret(
     run_coro,
     config_file: Optional[str],
     report_rounds: Optional[List[ReportRound]] = None,
+    report_role: str = "omniscient",
+    report_max_llm_calls: int = 10,
     extra_summary_fields: Optional[Dict[str, Any]] = None,
     no_report: bool = False,
 ) -> Dict[str, Any]:
@@ -873,7 +865,13 @@ async def run_and_interpret(
 
     # Optionally generate LLM interpretation report
     if report_rounds and not no_report and config_file:
-        report = await generate_report(result, config_file, report_rounds)
+        report = await generate_report(
+            result,
+            config_file,
+            report_rounds,
+            role=report_role,
+            max_llm_calls=report_max_llm_calls,
+        )
         if report:
             print()
             print("=" * 60)

@@ -1,0 +1,19 @@
+{
+  "skill": "<domain>",
+  "platform": "<platform-or-remove>",
+  "channel": "<channel-or-remove>",
+  "vertical": "<vertical-or-remove>",
+  "simulation_horizon": "7d",
+  "ensemble_runs": 1,
+  "deliberation_rounds": 3,
+  "report": 1,
+  "redact_input": false,
+  "event": {
+    "title": "<title-or-remove-if-other-seed-text-exists>",
+    "summary": "<summary-or-remove>",
+    "description": "<description-or-remove>"
+  },
+  "source": {
+    "summary": "<source-or-account-context>"
+  }
+}

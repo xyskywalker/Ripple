@@ -31,13 +31,22 @@ class JobManager:
         self._tasks: dict[str, asyncio.Task] = {}
         self._cancel_tokens: dict[str, tuple[str, datetime]] = {}
 
+    def _prepare_output_dir(self, base_output: str | Path | None, job_id: str) -> str:
+        """为 job 分配独立输出目录。 / Allocate a dedicated output directory for the job."""
+        base_dir = Path(base_output or self._output_dir)
+        base_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        artifact_dir = base_dir / f"{job_id}_{timestamp}"
+        artifact_dir.mkdir(parents=True, exist_ok=False)
+        return str(artifact_dir) + "/"
+
     async def create_job(self, request: dict) -> str:
         normalized_request = dict(request)
-        if not normalized_request.get('output_path'):
-            self._output_dir.mkdir(parents=True, exist_ok=True)
-            normalized_request['output_path'] = str(self._output_dir) + '/'
-
         job_id = f"job_{uuid.uuid4().hex[:12]}"
+        normalized_request['output_path'] = self._prepare_output_dir(
+            normalized_request.get('output_path'),
+            job_id,
+        )
         self.repo.create_job(job_id, normalized_request)
         self._tasks[job_id] = asyncio.create_task(self._execute(job_id=job_id, request=normalized_request))
         return job_id

@@ -22,7 +22,7 @@ from e2e_helpers import (
     build_historical_from_posts,
     config_file_path,
     create_arg_parser,
-    format_stats_block,
+    load_skill_report_bundle,
     print_progress,
     run_and_interpret,
     setup_logging,
@@ -172,97 +172,31 @@ def _build_source(brand: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-# =============================================================================
-# Report prompts (PMF-specific)
-# =============================================================================
-
-_SYSTEM_PREFIX = (
-    "你是 Ripple CAS（复杂自适应系统）PMF 验证模拟引擎的专业分析师。\n"
-    "你的任务是基于模拟引擎输出的结构化数据，生成人类友好的 PMF 验证解读报告。\n\n"
-    "【格式规范】\n"
-    "- 一律使用简体中文输出\n"
-    "- 用【】标记章节标题\n"
-    "- 不输出 JSON、代码块或 Markdown 格式，只输出纯文本\n"
-    "- 段落清晰、逻辑连贯，可直接展示给创业团队/产品团队阅读\n\n"
-    "【Agent 命名规范】\n"
-    "- 带 star_ 前缀的 Agent 显示为「星-」+ 中文描述\n"
-    "- 带 sea_ 前缀的 Agent 显示为「海-」+ 中文描述\n\n"
-    "【PMF 验证视角】\n"
-    "- 始终区分'促销驱动'与'需求驱动'的行为\n"
-    "- 始终区分'冲动消费'与'理性选择'的信号\n"
-    "- 对算法推荐电商渠道，重点关注复购率而非首购量\n"
-    "- 警惕将'算法给的流量'误读为'市场自发需求'\n"
-)
+def _build_report_bundle(
+    brand: Dict[str, Any] | None = None,
+    historical_posts: List[Dict[str, Any]] | None = None,
+) -> tuple[List[ReportRound], str, int]:
+    """从 skill 加载 PMF 报告模板。 / Load the PMF report bundle from the skill."""
+    request: Dict[str, Any] = {
+        "skill": SKILL_NAME,
+        "platform": PLATFORM,
+        "channel": CHANNEL,
+        "vertical": VERTICAL,
+    }
+    if brand:
+        request["source"] = _build_source(brand)
+    if historical_posts:
+        request["historical"] = build_historical_from_posts(historical_posts)
+    return load_skill_report_bundle(request)
 
 
 def _build_report_rounds(
     brand: Dict[str, Any] | None = None,
     historical_posts: List[Dict[str, Any]] | None = None,
 ) -> List[ReportRound]:
-    """Build 3-round PMF report specification."""
-    extra_parts: List[str] = []
-    if brand:
-        extra_parts.append(
-            f"## 补充：品牌账号\n"
-            f"名称={brand.get('account_name', '')} "
-            f"粉丝={brand.get('followers_count', 0)} "
-            f"风格={brand.get('content_style', '')}"
-        )
-    if historical_posts:
-        stats_text = format_stats_block(
-            historical_posts,
-            metrics=("views", "likes", "comments", "shares", "sales"),
-        )
-        if stats_text:
-            extra_parts.append(f"## 补充：历史数据统计\n{stats_text}")
-    extra_context = "\n\n".join(extra_parts)
-
-    return [
-        ReportRound(
-            label="验证背景与模拟环境",
-            system_prompt=_SYSTEM_PREFIX + (
-                "当前任务：撰写 PMF 验证报告的前两个章节。\n\n"
-                "【验证背景】（100-150字）\n"
-                "概述本次 PMF 验证的背景：验证什么产品、在什么渠道、"
-                "所属行业特征、品牌当前状态。\n\n"
-                "【模拟环境设定】（200-300字）\n"
-                "解读全视者在初始化阶段的环境设定：\n"
-                "- 创建了哪些 Star/Sea Agent\n"
-                "- 算法推荐电商渠道的传播参数设定\n"
-                "- 快消品行业的反乐观基线锚定\n"
-            ),
-            extra_user_context=extra_context,
-        ),
-        ReportRound(
-            label="传播过程与 PMF 信号",
-            system_prompt=_SYSTEM_PREFIX + (
-                "当前任务：撰写 PMF 验证报告的中间两个章节。\n\n"
-                "【传播过程回顾】（150-250字）\n"
-                "概述算法推荐电商渠道中的传播全貌：\n"
-                "- 脉冲-衰减周期的表现\n"
-                "- 提炼 3-5 个关键节点\n\n"
-                "【PMF 信号识别】（200-350字）\n"
-                "严格区分：\n"
-                "- 强 PMF 信号（自然流量转化、非促销复购、用户自发内容创作）\n"
-                "- 弱 PMF 信号（促销驱动的高销量、KOL 带货脉冲）\n"
-                "- 伪 PMF 信号（算法初始流量、限时特价转化）\n"
-            ),
-        ),
-        ReportRound(
-            label="PMF 评级与行动建议",
-            system_prompt=_SYSTEM_PREFIX + (
-                "当前任务：撰写 PMF 验证报告的最后三个章节。\n\n"
-                "【PMF 评级判定】（150-250字）\n"
-                "基于合议庭讨论和模拟数据，给出 PMF 评级（A/B/C/D/F）及核心依据。\n\n"
-                "【关键风险与挑战】（150-250字）\n"
-                "针对快消品 × 算法推荐电商的特有风险：\n"
-                "- 冲动消费退货、付费流量依赖、渠道单一、巨头竞争挤压\n\n"
-                "【行动建议】（200-300字）\n"
-                "3-5 条具体可落地的下一步行动：产品端、渠道端、内容端、数据端、风控端。\n"
-            ),
-            extra_user_context=extra_context,
-        ),
-    ]
+    """兼容旧调用，仅返回轮次。 / Backward-compatible wrapper returning only rounds."""
+    rounds, _, _ = _build_report_bundle(brand, historical_posts)
+    return rounds
 
 
 # =============================================================================
@@ -336,13 +270,17 @@ async def main() -> None:
     waves = args.waves
     cfg = config_file_path()
     no_report = args.no_report
+    basic_rounds, basic_role, basic_max_calls = _build_report_bundle()
+    enhanced_rounds, enhanced_role, enhanced_max_calls = _build_report_bundle(SAMPLE_BRAND_ACCOUNT, SAMPLE_POSTS)
 
     if args.mode in ("basic", "all"):
         result = await run_and_interpret(
             "基础 PMF 验证",
             run_basic(waves),
             cfg,
-            report_rounds=_build_report_rounds(),
+            report_rounds=basic_rounds,
+            report_role=basic_role,
+            report_max_llm_calls=basic_max_calls,
             extra_summary_fields=_EXTRA_SUMMARY,
             no_report=no_report,
         )
@@ -356,7 +294,9 @@ async def main() -> None:
             "增强 PMF 验证",
             run_enhanced(waves),
             cfg,
-            report_rounds=_build_report_rounds(SAMPLE_BRAND_ACCOUNT, SAMPLE_POSTS),
+            report_rounds=enhanced_rounds,
+            report_role=enhanced_role,
+            report_max_llm_calls=enhanced_max_calls,
             extra_summary_fields=_EXTRA_SUMMARY,
             no_report=no_report,
         )

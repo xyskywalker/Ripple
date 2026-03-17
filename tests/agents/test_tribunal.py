@@ -53,6 +53,23 @@ class TestTribunalAgentEvaluate:
         )
         assert opinion.scores["demand_resonance"] == 3
 
+    @pytest.mark.asyncio
+    async def test_evaluate_handles_relaxed_json_from_llm(self, agent, mock_llm_caller):
+        """Tribunal 解析应容忍尾逗号和未转义换行。 / Tribunal parsing should tolerate trailing commas and raw newlines."""
+        mock_llm_caller.return_value = (
+            "```json\n"
+            '{"scores": {"demand_resonance": 3,}, "narrative": "第一行\n第二行"}\n'
+            "```"
+        )
+        opinion = await agent.evaluate(
+            evidence="Evidence text",
+            dimensions=["demand_resonance"],
+            rubric="rubric text",
+            round_number=0,
+        )
+        assert opinion.scores["demand_resonance"] == 3
+        assert "第一行 第二行" in opinion.narrative
+
 
 class TestTribunalAgentChallenge:
     @pytest.mark.asyncio

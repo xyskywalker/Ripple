@@ -100,6 +100,30 @@ class TestSkillLoading:
 
 
 class TestSkillManager:
+    def test_load_skill_exposes_full_frontmatter_meta(self, tmp_path):
+        """LoadedSkill.meta 应暴露完整 frontmatter。 / LoadedSkill.meta should expose full frontmatter."""
+        skill_dir = tmp_path / "skills" / "meta-skill"
+        skill_dir.mkdir(parents=True)
+
+        (skill_dir / "SKILL.md").write_text(
+            "---\n"
+            "name: meta-skill\n"
+            "description: test skill\n"
+            "use_when: use this when validating demos\n"
+            "prompts:\n"
+            "  star: prompts/star.md\n"
+            "---\n"
+        )
+        prompts_dir = skill_dir / "prompts"
+        prompts_dir.mkdir()
+        (prompts_dir / "star.md").write_text("star")
+
+        manager = SkillManager(search_paths=[tmp_path / "skills"])
+        skill = manager.load("meta-skill")
+
+        assert skill.meta["name"] == "meta-skill"
+        assert skill.meta["use_when"] == "use this when validating demos"
+
     def test_load_skill_without_cas_parameters(self, tmp_path):
         """Skill 不包含 cas_parameters 应能正常加载。 / Skill without cas_parameters should load normally."""
         skill_dir = tmp_path / "skills" / "test-skill"

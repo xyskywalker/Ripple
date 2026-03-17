@@ -1,0 +1,160 @@
+summary: 社交媒体传播模拟输入契约，说明最少要提供哪些内容种子，以及哪些补充信息能显著提高传播推演质量。
+notes:
+  - event 根对象必填；标题、正文、摘要、描述等主体文本至少提供一种。
+  - platform 既可以放在 JSON 顶层，也可以通过 --platform 传入并覆盖。
+  - source 下的账号画像越完整，冷启动、信任度和扩散边界判断越稳定。
+requirements:
+  required:
+    - path: event
+      kind: object
+      description: 事件对象必填，承载待传播内容及其上下文。
+    - path: event.seed_text
+      kind: one_of
+      any_of:
+        - event.title
+        - event.body
+        - event.content
+        - event.text
+        - event.summary
+        - event.description
+      description: 至少提供一种主体文本，智能体才能建立传播上下文。
+  recommended:
+    - path: platform
+      kind: selector
+      description: 建议指定平台画像，以注入平台分发、互动和衰减机制。
+    - path: event.title
+      kind: field
+      description: 建议提供内容标题，便于快速建立主题与首轮意图。
+    - path: event.body
+      kind: field
+      description: 建议提供正文，支撑更完整的传播判断。
+    - path: source.author_profile
+      kind: field
+      description: 建议提供发布源画像，以校准冷启动能力与可信度。
+sections:
+  - name: request
+    title: 请求级参数
+    description: 控制平台画像、观察窗口与模拟参数。
+    fields:
+      - path: skill
+        tier: optional
+        type: string
+        description: 领域 Skill 名称。
+        default: social-media
+      - path: platform
+        tier: recommended
+        type: enum
+        description: 平台画像 key。
+        options_from: platform
+      - path: simulation_horizon
+        tier: optional
+        type: string
+        description: 模拟观察窗口，例如 48h、7d。
+        example: 7d
+      - path: historical
+        tier: optional
+        type: object
+        description: 历史传播、互动基线或先验数据。
+      - path: max_waves
+        tier: optional
+        type: integer
+        description: 传播轮次上限；不传时由 CLI 自动推导安全上限。
+      - path: ensemble_runs
+        tier: optional
+        type: integer
+        description: 集成推演次数，默认 1。
+        default: 1
+      - path: deliberation_rounds
+        tier: optional
+        type: integer
+        description: 合议庭最大轮数，默认 3。
+        default: 3
+      - path: random_seed
+        tier: optional
+        type: integer
+        description: 随机种子，用于提高结果复现性。
+      - path: report
+        tier: optional
+        type: integer
+        description: 是否生成详细报告；1 生成，0 跳过。
+        enum:
+          - "0"
+          - "1"
+        default: 1
+      - path: redact_input
+        tier: optional
+        type: boolean
+        description: 是否对输入做脱敏。
+        default: false
+  - name: event
+    title: 内容事件
+    description: 承载待传播内容、文案及其表达方式。
+    fields:
+      - path: event.title
+        tier: recommended
+        type: string
+        description: 内容标题或主题。
+        example: 春季敏感肌修护笔记
+      - path: event.body
+        tier: recommended
+        type: string
+        description: 内容正文、核心表达与卖点。
+        example: 换季泛红怎么修护，我最近用这套流程稳定很多。
+      - path: event.summary
+        tier: optional
+        type: string
+        description: 内容摘要，适合浓缩关键信息。
+      - path: event.description
+        tier: optional
+        type: string
+        description: 更长的背景描述或营销目标说明。
+      - path: event.content
+        tier: optional
+        type: string
+        description: 备用主体文本字段。
+      - path: event.text
+        tier: optional
+        type: string
+        description: 备用主体文本字段。
+      - path: event.content_type
+        tier: optional
+        type: string
+        description: 内容类型，如 note、post、video、live。
+        example: note
+  - name: source
+    title: 发布源信息
+    description: 用于描述发布账号、作者或品牌账号背景。
+    fields:
+      - path: source.author_profile
+        tier: recommended
+        type: string
+        description: 账号定位、粉丝画像、历史表现等综合描述。
+        example: 小红书护肤垂类账号，粉丝集中在 22-35 岁一二线女性。
+      - path: source.account_name
+        tier: optional
+        type: string
+        description: 账号名称。
+      - path: source.bio
+        tier: optional
+        type: string
+        description: 账号简介。
+      - path: source.target_audience
+        tier: optional
+        type: string
+        description: 目标受众概述。
+      - path: source.followers_count
+        tier: optional
+        type: integer
+        description: 粉丝数。
+      - path: source.posts_count
+        tier: optional
+        type: integer
+        description: 历史发帖数。
+      - path: source.verification_status
+        tier: optional
+        type: string
+        description: 认证状态，如 personal、brand、official。
+      - path: source.summary
+        tier: optional
+        type: string
+        description: 发布源摘要。

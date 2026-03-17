@@ -25,7 +25,9 @@ async def test_job_manager_sets_default_output_path(tmp_path: Path) -> None:
     job_id = await manager.create_job({"event": {"title": "demo"}, "skill": "social-media"})
     await manager.wait(job_id, timeout=1)
 
-    assert captured["output_path"] == str(output_dir) + "/"
+    output_path = str(captured["output_path"])
+    assert output_path.startswith(str(output_dir) + "/job_")
+    assert output_path.endswith("/")
 
 
 @pytest.mark.asyncio
@@ -41,14 +43,17 @@ async def test_job_manager_preserves_explicit_output_path(tmp_path: Path) -> Non
         output_dir=tmp_path / "artifacts",
         run_simulation=fake_run,
     )
+    custom_output = tmp_path / "custom-output"
 
     job_id = await manager.create_job(
         {
             "event": {"title": "demo"},
             "skill": "social-media",
-            "output_path": "/custom/output/",
+            "output_path": str(custom_output),
         }
     )
     await manager.wait(job_id, timeout=1)
 
-    assert captured["output_path"] == "/custom/output/"
+    output_path = str(captured["output_path"])
+    assert output_path.startswith(str(custom_output) + "/job_")
+    assert output_path.endswith("/")

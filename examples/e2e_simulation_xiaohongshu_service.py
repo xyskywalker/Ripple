@@ -47,7 +47,7 @@ from e2e_xiaohongshu_common import (
     SAMPLE_POSTS,
     SAMPLE_TOPIC,
     SIMULATION_HOURS,
-    build_report_rounds,
+    build_report_bundle,
 )
 
 setup_logging()
@@ -373,8 +373,6 @@ def _serialize_report_rounds(rounds: Sequence[Any]) -> List[Dict[str, str]]:
             }
         )
     return payload
-
-
 def _summary_value(result: Dict[str, Any], key: str) -> Any:
     value = result.get(key)
     if value is not None:
@@ -549,6 +547,7 @@ async def _run_mode(
     label: str,
     run_coro,
     report_rounds: Sequence[Any],
+    report_role: str = "omniscient",
     base_url: str,
     api_token: str,
     report_max_llm_calls: int,
@@ -572,6 +571,7 @@ async def _run_mode(
         api_token=api_token,
         job_id=job_id,
         rounds=report_rounds,
+        role=report_role,
         max_llm_calls=report_max_llm_calls,
         report_timeout=report_timeout,
     )
@@ -621,6 +621,8 @@ async def main() -> None:
     api_token = str(args.api_token or "").strip()
     waves = args.waves
     no_report = args.no_report
+    basic_rounds, basic_role, basic_max_calls = build_report_bundle()
+    enhanced_rounds, enhanced_role, enhanced_max_calls = build_report_bundle(SAMPLE_ACCOUNT, SAMPLE_POSTS)
 
     if args.mode in ("basic", "all"):
         await _run_mode(
@@ -632,10 +634,11 @@ async def main() -> None:
                 poll_interval=args.poll_interval,
                 wait_timeout=args.timeout,
             ),
-            report_rounds=build_report_rounds(),
+            report_rounds=basic_rounds,
+            report_role=basic_role,
             base_url=base_url,
             api_token=api_token,
-            report_max_llm_calls=args.report_max_llm_calls,
+            report_max_llm_calls=max(args.report_max_llm_calls, basic_max_calls),
             report_timeout=args.timeout,
             no_report=no_report,
         )
@@ -650,10 +653,11 @@ async def main() -> None:
                 poll_interval=args.poll_interval,
                 wait_timeout=args.timeout,
             ),
-            report_rounds=build_report_rounds(SAMPLE_ACCOUNT, SAMPLE_POSTS),
+            report_rounds=enhanced_rounds,
+            report_role=enhanced_role,
             base_url=base_url,
             api_token=api_token,
-            report_max_llm_calls=args.report_max_llm_calls,
+            report_max_llm_calls=max(args.report_max_llm_calls, enhanced_max_calls),
             report_timeout=args.timeout,
             no_report=no_report,
         )

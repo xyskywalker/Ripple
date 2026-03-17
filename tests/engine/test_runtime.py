@@ -221,6 +221,80 @@ class TestRuntimeInit:
 
 class TestRuntimeSafetyGuards:
     @pytest.mark.asyncio
+    async def test_init_phase_emits_wave_limit_details_when_request_omits_max_waves(self):
+        """INIT 事件应暴露预估/安全/执行上限。 / INIT event should expose estimated, safety, and effective wave limits."""
+        init_dynamics = json.dumps({
+            "wave_time_window": "4h",
+            "wave_time_window_reasoning": "test",
+            "energy_decay_per_wave": 0.1,
+            "platform_characteristics": "test",
+        })
+
+        init_agents = json.dumps({
+            "star_configs": [{"id": "s1", "description": "敏感肌新号", "influence_level": "low"}],
+            "sea_configs": [{"id": "e1", "description": "办公室白领群体", "interest_tags": []}],
+        })
+
+        init_topology = json.dumps({
+            "topology": {"edges": []},
+            "seed_ripple": {"content": "t", "initial_energy": 0.1},
+        })
+
+        wave_stop = json.dumps({
+            "wave_number": 0,
+            "simulated_time_elapsed": "4h",
+            "simulated_time_remaining": "44h",
+            "continue_propagation": False,
+            "activated_agents": [],
+            "skipped_agents": [],
+            "global_observation": "停止",
+            "termination_reason": "done",
+        })
+
+        observe_resp = json.dumps({
+            "phase_vector": {"heat": "decline"},
+            "phase_transition_detected": False,
+            "emergence_events": [],
+            "topology_recommendations": [],
+        })
+
+        synth_resp = json.dumps({
+            "prediction": {}, "timeline": [],
+            "bifurcation_points": [], "agent_insights": {},
+        })
+
+        events = []
+
+        async def handler(event):
+            events.append(event)
+
+        caller = AsyncMock(side_effect=[
+            init_dynamics, init_agents, init_topology,
+            wave_stop,
+            observe_resp, synth_resp,
+        ])
+
+        runtime = SimulationRuntime(
+            omniscient_caller=caller,
+            agent_caller=AsyncMock(),
+            on_progress=handler,
+        )
+
+        await runtime.run({
+            "event": {"description": "t"},
+            "skill": "t",
+            "simulation_horizon": "48h",
+        })
+
+        init_end = [e for e in events if e.type == "phase_end" and e.phase == "INIT"]
+        assert len(init_end) == 1
+        detail = init_end[0].detail
+        assert detail["estimated_waves"] == 12
+        assert detail["safety_max_waves"] == 36
+        assert detail["requested_max_waves"] is None
+        assert detail["max_waves"] == 36
+
+    @pytest.mark.asyncio
     async def test_max_waves_safety_cutoff(self):
         """超过安全上限时应强制终止。 / Should force terminate when exceeding safety limit."""
         # 全视者总是返回 continue=True / Omniscient always returns continue=True

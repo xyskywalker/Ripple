@@ -206,6 +206,8 @@ class SimulationRecorder:
         init_result: Dict[str, Any],
         estimated_waves: int,
         max_waves: int,
+        safety_max_waves: Optional[int] = None,
+        requested_max_waves: Optional[int] = None,
     ) -> None:
         """记录 INIT 阶段结果 — 全视者初始化输出。 / Record INIT phase — Omniscient initialization output.
 
@@ -220,6 +222,8 @@ class SimulationRecorder:
             "dynamic_parameters": init_result.get("dynamic_parameters", {}),
             "estimated_waves": estimated_waves,
             "max_waves": max_waves,
+            "safety_max_waves": safety_max_waves,
+            "requested_max_waves": requested_max_waves,
             "seed_ripple_raw": init_result.get("seed_ripple", {}),
         }
         self._flush()
@@ -614,6 +618,10 @@ class SimulationRecorder:
             L.append(
                 f"Est: {init.get('estimated_waves', '?')}/{init.get('max_waves', '?')} waves"
             )
+            if init.get("safety_max_waves") is not None:
+                L.append(f"SafetyCap: {init.get('safety_max_waves')}")
+            if init.get("requested_max_waves") is not None:
+                L.append(f"RequestedCap: {init.get('requested_max_waves')}")
             seed_raw = init.get("seed_ripple_raw") or {}
             if seed_raw:
                 content = (seed_raw.get("content") or "")[:120]

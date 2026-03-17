@@ -35,7 +35,7 @@ from e2e_xiaohongshu_common import (
     SAMPLE_POSTS,
     SAMPLE_TOPIC,
     SIMULATION_HOURS,
-    build_report_rounds,
+    build_report_bundle,
 )
 
 setup_logging()
@@ -95,13 +95,17 @@ async def main() -> None:
     waves = args.waves
     cfg = config_file_path()
     no_report = args.no_report
+    basic_rounds, basic_role, basic_max_calls = build_report_bundle()
+    enhanced_rounds, enhanced_role, enhanced_max_calls = build_report_bundle(SAMPLE_ACCOUNT, SAMPLE_POSTS)
 
     if args.mode in ("basic", "all"):
         await run_and_interpret(
             "基础模拟",
             run_basic(waves),
             cfg,
-            report_rounds=build_report_rounds(),
+            report_rounds=basic_rounds,
+            report_role=basic_role,
+            report_max_llm_calls=basic_max_calls,
             no_report=no_report,
         )
 
@@ -110,7 +114,9 @@ async def main() -> None:
             "增强模拟",
             run_enhanced(waves),
             cfg,
-            report_rounds=build_report_rounds(SAMPLE_ACCOUNT, SAMPLE_POSTS),
+            report_rounds=enhanced_rounds,
+            report_role=enhanced_role,
+            report_max_llm_calls=enhanced_max_calls,
             no_report=no_report,
         )
 

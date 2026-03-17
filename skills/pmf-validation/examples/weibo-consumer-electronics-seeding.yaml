@@ -1,0 +1,40 @@
+title: 微博消费电子新品种草 PMF 验证
+summary: 评估消费电子新品在微博舆论场中的认知建立、讨论热度和真实购买兴趣。
+use_when: 适合硬件团队在新品发布前判断核心卖点是否足够打动首批关注者，以及价格是否会成为阻碍。
+tags:
+  - pmf
+  - weibo
+  - consumer-electronics
+  - content-seeding
+command:
+  skill: pmf-validation
+  platform: weibo
+  channel: content-seeding
+  vertical: consumer-electronics
+  output_path: ./outputs
+  simulation_horizon: 7d
+request:
+  event:
+    title: 便携式 AI 翻译耳机 - 微博新品种草 PMF 验证
+    description: 一款面向频繁跨语种沟通人群的便携式 AI 翻译耳机，支持实时双向翻译、会议字幕投屏和离线常用语模式，主打出国差旅和跨境商务场景，首发价 999 元。
+    summary: 产品：AI 翻译耳机 | 品类：消费电子 | 定价：999 元 | 目标用户：跨境商务、海外差旅、语言学习者 | 差异点：实时双向翻译、会议字幕投屏、离线模式
+    product_name: 便携式 AI 翻译耳机
+    category: 消费电子
+    price: 999 元
+    differentiators:
+      - 实时双向翻译
+      - 会议字幕投屏
+      - 离线常用语模式
+    target_channel: 微博新品种草
+    validation_question: 这款 AI 翻译耳机在微博内容种草渠道能否验证 PMF？用户会不会因为高频跨语种沟通痛点产生真实购买兴趣？
+  source:
+    account_name: 智能硬件前线
+    bio: 关注 AI 硬件、效率设备与跨境工作方式
+    platform_code: weibo
+    main_category: 数码科技
+    content_style: 新品拆解 + 场景讨论 + 参数对比
+    target_audience: 科技媒体读者、跨境从业者、差旅高频人群
+    followers_count: 31600
+    posts_count: 540
+    verification_status: personal
+    summary: 账号：智能硬件前线 | 粉丝数：31600 | 风格：新品拆解 + 场景讨论

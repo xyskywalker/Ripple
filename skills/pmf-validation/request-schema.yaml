@@ -1,0 +1,199 @@
+summary: PMF 验证领域输入契约，说明如何描述产品、验证问题、投放渠道和账号背景，以便 Agent 可靠地构造高质量输入。
+notes:
+  - event 根对象必填；标题、摘要或描述至少提供一种，才能建立基本的产品验证上下文。
+  - platform、channel、vertical 可写入 JSON 顶层，也可通过对应 CLI 参数覆盖。
+  - PMF 结论强依赖产品差异点、目标人群和验证问题，请尽量避免只有一句模糊概念。
+requirements:
+  required:
+    - path: event
+      kind: object
+      description: 事件对象必填，承载产品与验证假设。
+    - path: event.seed_text
+      kind: one_of
+      any_of:
+        - event.title
+        - event.summary
+        - event.description
+      description: 至少提供标题、摘要或描述之一，供系统建立 PMF 验证上下文。
+  recommended:
+    - path: platform
+      kind: selector
+      description: 建议指定平台画像，校准平台分发、触达和转化习惯。
+    - path: channel
+      kind: selector
+      description: 建议指定渠道画像，决定触达逻辑与反馈机制。
+    - path: vertical
+      kind: selector
+      description: 建议指定垂直行业画像，加载更细的行业基准。
+    - path: event.product_name
+      kind: field
+      description: 建议提供明确产品名，避免多个方案或概念混淆。
+    - path: event.validation_question
+      kind: field
+      description: 建议提供清晰验证问题，方便合议庭聚焦判定标准。
+    - path: source.summary
+      kind: field
+      description: 建议提供账号摘要，帮助估计信任基础与触达能力。
+sections:
+  - name: request
+    title: 请求级参数
+    description: 控制平台、渠道、垂直画像以及模拟参数。
+    fields:
+      - path: skill
+        tier: optional
+        type: string
+        description: 领域 Skill 名称。
+        default: pmf-validation
+      - path: platform
+        tier: recommended
+        type: enum
+        description: 平台画像 key。
+        options_from: platform
+      - path: channel
+        tier: recommended
+        type: enum
+        description: 渠道画像 key。
+        options_from: channel
+      - path: vertical
+        tier: recommended
+        type: enum
+        description: 垂直行业画像 key。
+        options_from: vertical
+      - path: simulation_horizon
+        tier: optional
+        type: string
+        description: 模拟观察窗口，例如 7d、14d。
+        example: 7d
+      - path: historical
+        tier: optional
+        type: object
+        description: 历史验证记录、真实转化基线或过往渠道数据。
+      - path: max_waves
+        tier: optional
+        type: integer
+        description: 传播轮次上限；不传时由 CLI 自动按预估轮次推导安全上限。
+      - path: ensemble_runs
+        tier: optional
+        type: integer
+        description: 集成推演次数，默认 1。
+        default: 1
+      - path: deliberation_rounds
+        tier: optional
+        type: integer
+        description: 合议庭最大轮数，默认 3。
+        default: 3
+      - path: random_seed
+        tier: optional
+        type: integer
+        description: 随机种子，用于提高复现性。
+      - path: report
+        tier: optional
+        type: integer
+        description: 是否生成详细报告；1 生成，0 跳过。
+        enum:
+          - "0"
+          - "1"
+        default: 1
+      - path: redact_input
+        tier: optional
+        type: boolean
+        description: 是否对输入做脱敏。
+        default: false
+  - name: event
+    title: 产品与验证问题
+    description: 描述产品概念、差异点、目标用户和待验证问题。
+    fields:
+      - path: event.title
+        tier: recommended
+        type: string
+        description: 本次 PMF 验证任务标题。
+        example: 轻量 AI 会议纪要工具 - 小红书内容种草 PMF 验证
+      - path: event.summary
+        tier: recommended
+        type: string
+        description: 产品、定价、目标用户和核心卖点的压缩摘要。
+      - path: event.description
+        tier: recommended
+        type: string
+        description: 更完整的产品背景、场景、价值主张与使用方式。
+      - path: event.product_name
+        tier: recommended
+        type: string
+        description: 产品名称。
+        example: 轻量 AI 会议纪要工具
+      - path: event.category
+        tier: recommended
+        type: string
+        description: 产品品类。
+        example: SaaS 协作效率工具
+      - path: event.price
+        tier: optional
+        type: string
+        description: 定价信息。
+        example: 39 元/人/月
+      - path: event.differentiators
+        tier: recommended
+        type: array[string]
+        description: 核心差异点列表。
+        example:
+          - 实时转写
+          - 自动提炼待办
+          - 项目级知识沉淀
+      - path: event.target_channel
+        tier: optional
+        type: string
+        description: 目标验证渠道的自然语言描述。
+        example: 小红书内容种草
+      - path: event.validation_question
+        tier: recommended
+        type: string
+        description: 希望系统回答的核心验证问题。
+      - path: event.target_users
+        tier: optional
+        type: string
+        description: 目标用户群体概述。
+  - name: source
+    title: 账号与发布背景
+    description: 描述用于验证的账号、内容风格和触达对象。
+    fields:
+      - path: source.account_name
+        tier: recommended
+        type: string
+        description: 账号名称。
+      - path: source.bio
+        tier: recommended
+        type: string
+        description: 账号简介或定位。
+      - path: source.platform_code
+        tier: optional
+        type: enum
+        description: 账号所在平台代码。
+        options_from: platform
+      - path: source.main_category
+        tier: optional
+        type: string
+        description: 账号主类目。
+      - path: source.content_style
+        tier: optional
+        type: string
+        description: 内容风格，如真实经验分享、产品拆解、测评等。
+      - path: source.target_audience
+        tier: recommended
+        type: string
+        description: 账号主要受众。
+      - path: source.followers_count
+        tier: optional
+        type: integer
+        description: 粉丝数。
+      - path: source.posts_count
+        tier: optional
+        type: integer
+        description: 历史发帖数。
+      - path: source.verification_status
+        tier: optional
+        type: string
+        description: 认证状态，如 personal、brand、official。
+      - path: source.summary
+        tier: recommended
+        type: string
+        description: 账号摘要，用于快速描述其体量和风格。

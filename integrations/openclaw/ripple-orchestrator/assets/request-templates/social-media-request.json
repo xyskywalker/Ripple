@@ -1,0 +1,17 @@
+{
+  "skill": "social-media",
+  "platform": "xiaohongshu",
+  "simulation_horizon": "48h",
+  "ensemble_runs": 1,
+  "deliberation_rounds": 3,
+  "report": 1,
+  "redact_input": false,
+  "event": {
+    "title": "<content-title>",
+    "body": "<main-post-body>",
+    "content_type": "note"
+  },
+  "source": {
+    "author_profile": "<account-positioning-audience-and-history>"
+  }
+}

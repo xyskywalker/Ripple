@@ -19,8 +19,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/version-0.2.0-green" alt="Version">
-  <img src="https://img.shields.io/badge/tests-227%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/version-0.2.1-green" alt="Version">
+  <img src="https://img.shields.io/badge/tests-355%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/skills-2-teal" alt="Skills">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-orange" alt="License">
   <img src="https://img.shields.io/badge/LLM-Anthropic%20%7C%20OpenAI%20%7C%20Bedrock-purple" alt="LLM">
@@ -38,23 +38,24 @@
 <summary><strong>📑 Table of Contents</strong></summary>
 
 1. [Introduction](#-introduction)
-2. [Design Philosophy](#-design-philosophy)
-3. [Core Concepts: How CAS Drives Prediction](#-core-concepts-how-cas-drives-prediction)
-4. [Star-Sea-Tribunal Architecture](#-star-sea-tribunal-architecture)
-5. [Runtime Engine](#-runtime-engine)
-6. [System Architecture](#-system-architecture)
-7. [Quick Start](#-quick-start)
-8. [Cost Comparison](#-cost-comparison)
-9. [Social Media: The First Domain Implementation](#-social-media-the-first-domain-implementation)
-10. [PMF Validation: The Second Domain Implementation](#-pmf-validation-the-second-domain-implementation)
-11. [Infinite Possibilities](#-infinite-possibilities)
-12. [Project Structure](#-project-structure)
-13. [Project Status](#-project-status)
-14. [Tech Stack](#-tech-stack)
-15. [Document Index](#-document-index)
-16. [Inspiration: OASIS](#-inspiration-oasis)
-17. [Acknowledgments](#-acknowledgments)
-18. [License](#-license)
+2. [🌊🦞 One-Command OpenClaw Install](#-one-command-openclaw-install)
+3. [Design Philosophy](#-design-philosophy)
+4. [Core Concepts: How CAS Drives Prediction](#-core-concepts-how-cas-drives-prediction)
+5. [Star-Sea-Tribunal Architecture](#-star-sea-tribunal-architecture)
+6. [Runtime Engine](#-runtime-engine)
+7. [System Architecture](#-system-architecture)
+8. [Quick Start](#-quick-start)
+9. [Cost Comparison](#-cost-comparison)
+10. [Social Media: The First Domain Implementation](#-social-media-the-first-domain-implementation)
+11. [PMF Validation: The Second Domain Implementation](#-pmf-validation-the-second-domain-implementation)
+12. [Infinite Possibilities](#-infinite-possibilities)
+13. [Project Structure](#-project-structure)
+14. [Project Status](#-project-status)
+15. [Tech Stack](#-tech-stack)
+16. [Document Index](#-document-index)
+17. [Inspiration: OASIS](#-inspiration-oasis)
+18. [Acknowledgments](#-acknowledgments)
+19. [License](#-license)
 
 </details>
 
@@ -81,6 +82,18 @@ Both scenarios incorporate the **Tribunal mechanism** — through multi-expert s
 - 🎯 Oriented toward practical applications (content creation, product market analysis, public opinion assessment), not academic research
 - 🌐 The CAS core is completely domain-agnostic — social media and PMF validation are the first two application scenarios
 - ⚡ Pursuing ultimate practicality and cost efficiency — ~**3 orders of magnitude** reduction in LLM calls compared to OASIS
+
+---
+
+## 🌊🦞 One-Command OpenClaw Install
+
+To wire Ripple straight into OpenClaw, run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xyskywalker/Ripple/main/install.sh | bash
+```
+
+If OpenClaw is already installed and running locally, the script will also install the `ripple-orchestrator` skill automatically. Otherwise, it just installs Ripple itself.
 
 ---
 
@@ -111,7 +124,7 @@ Decision-making is **entirely delegated to LLMs**, fully leveraging LLM emergent
 
 ### 5. ✨ Minimalist Design
 
-System architecture is simplified as much as possible: **no third-party Agent frameworks used**, pure Python + httpx directly connecting to multiple LLM APIs. 23 core modules — pursuing the most complete CAS simulation capability with the least amount of code.
+System architecture is simplified as much as possible: **no third-party Agent frameworks used**, pure Python + httpx directly connecting to multiple LLM APIs. 35 core modules — pursuing the most complete CAS simulation capability with the least amount of code.
 
 ### 6. 🧩 Domain Separation & Skill Architecture
 
@@ -244,7 +257,7 @@ docker run -d --name ripple-service \
   -e RIPPLE_LLM_URL=https://api.openai.com/v1 \
   -e RIPPLE_LLM_API_MODE=chat_completions \
   -v "$PWD/data/ripple-service:/data" \
-  xyplusxy/ripple:v0.2.0
+  xyplusxy/ripple:v0.2.1
 ```
 
 **B) Reference Host Environment Variable**
@@ -261,7 +274,7 @@ docker run -d --name ripple-service \
   -e RIPPLE_LLM_URL=https://api.openai.com/v1 \
   -e RIPPLE_LLM_API_MODE=chat_completions \
   -v "$PWD/data/ripple-service:/data" \
-  xyplusxy/ripple:v0.2.0
+  xyplusxy/ripple:v0.2.1
 ```
 
 **Mode 1: HTTP+SSE Call Sample (auth enabled)**
@@ -307,7 +320,7 @@ ls data/ripple-service/ripple_outputs
 docker run -d --name ripple-service \
   -p 127.0.0.1:8080:8080 \
   -v "$PWD/data/ripple-service:/data" \
-  xyplusxy/ripple:v0.2.0
+  xyplusxy/ripple:v0.2.1
 ```
 
 > If you want this mode to require auth too, add `-e RIPPLE_API_TOKEN=your-service-token`.
@@ -356,6 +369,26 @@ curl -sS -X POST "$BASE_URL/v1/simulations/<JOB_ID>/report" \
 
 - Python 3.11+
 - pip
+- git
+
+#### One-Line Installer (Recommended)
+
+Works on macOS / Linux / Windows (WSL). The script will:
+
+- check for `git`, `Python 3.11+`, and `pip`
+- install the source tree into `~/.ripple/src/Ripple`
+- prefer the currently activated Python virtual environment; otherwise fall back to system `python3`
+- run `pip install -e .`
+- prepare `llm_config.yaml` when needed
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xyskywalker/Ripple/main/install.sh | bash
+```
+
+When the installer finishes, it prints:
+
+- the interactive setup command: `cd ~/.ripple/src/Ripple && ripple-cli llm setup`
+- the full config file path: `~/.ripple/src/Ripple/llm_config.yaml`
 
 #### Installation
 
@@ -752,14 +785,28 @@ ripple/
 │   ├── simulate.py         #   simulate() — one-click simulation entry point
 │   ├── ensemble.py         #   ensemble() — multi-run ensemble execution
 │   └── variant_isolation.py#   Variant isolation support
+├── cli/                    # 🖥️ Command-line entry
+│   └── app.py              #   ripple-cli — LLM / domain / job subcommands
+├── service/                # 🌐 HTTP+SSE service
+│   ├── app.py              #   FastAPI app and endpoint definitions
+│   ├── auth.py             #   Bearer token auth
+│   ├── event_bus.py        #   Job event bus (SSE)
+│   ├── job_manager.py      #   Job orchestration and lifecycle management
+│   ├── job_repo_sqlite.py  #   SQLite job repository
+│   ├── reporting.py        #   Service-side artifact/report loading
+│   ├── runner.py           #   Background job runner
+│   └── settings.py         #   Service settings
 ├── utils/                  # 🔧 Utilities
 │   └── json_parser.py      #   JSON parsing helpers
+├── reporting.py            # 📄 Post-simulation report generation
+├── version.py              # 🏷️ Project version lookup
 └── prompts.py              # 📝 System prompt templates
 
 skills/
 ├── social-media/           # 📱 Social Media Skill (v0.2.0)
 │   ├── SKILL.md            #   Skill metadata
 │   ├── domain-profile.md   #   Domain profile (general social media knowledge)
+│   ├── request-schema.yaml #   Request input schema
 │   ├── platforms/           #   7 platform profile files
 │   │   ├── xiaohongshu.md  #     🔴 Xiaohongshu (RED)
 │   │   ├── douyin.md       #     🎵 Douyin (TikTok CN)
@@ -773,12 +820,15 @@ skills/
 │   │   ├── tribunal.md     #     Propagation calibration Tribunal prompt
 │   │   ├── star.md         #     Star agent prompt
 │   │   └── sea.md          #     Sea agent prompt
+│   ├── examples/            #   3 domain example inputs
+│   ├── reports/             #   Report templates
 │   └── rubrics/             #   Scoring dimension definitions
 │       └── propagation-calibration.md  # Propagation calibration 5-dimension behavioral anchors
 │
 └── pmf-validation/          # 🎯 PMF Validation Skill (v0.2.0)
     ├── SKILL.md             #   Skill metadata
     ├── domain-profile.md    #   Domain profile (PMF methodology)
+    ├── request-schema.yaml  #   Request input schema
     ├── channels/             #   8+1 channel profiles (by propagation mechanism)
     │   ├── algorithm-ecommerce.md   # Algorithm-driven e-commerce
     │   ├── search-ecommerce.md      # Search e-commerce
@@ -799,39 +849,44 @@ skills/
     │   ├── xiaohongshu.md   #     🔴 Xiaohongshu (RED)
     │   ├── douyin.md        #     🎵 Douyin (TikTok CN)
     │   └── weibo.md         #     🔥 Weibo
+    ├── examples/             #   3 domain example inputs
     ├── prompts/              #   Agent prompt templates
     │   ├── omniscient.md    #     Omniscient prompt
     │   ├── tribunal.md      #     PMF review Tribunal prompt
     │   ├── star.md          #     Star agent prompt
     │   └── sea.md           #     Sea agent prompt
+    ├── reports/              #   Report templates
     └── rubrics/              #   Scoring dimension definitions
         ├── scorecard-dimensions.md  # PMF scoring dimensions (5 default + 6 extended)
         └── pmf-grade-rubric.md      # PMF grade criteria
 
 examples/                    # 📖 Examples
 ├── e2e_helpers.py                          # End-to-end test helper functions
+├── e2e_ab_test_fmcg_coffee.py              # PMF multi-variant comparison example
 ├── e2e_simulation_xiaohongshu.py           # Xiaohongshu full simulation example
 ├── e2e_simulation_cny_robot_xiaohongshu.py # Xiaohongshu CNY scenario simulation
+├── e2e_simulation_xiaohongshu_service.py   # Xiaohongshu HTTP+SSE service example
 └── e2e_pmf_fmcg_algorithm_ecommerce.py     # PMF validation: FMCG × Douyin e-commerce
 
 docs/                        # 📚 Design documents
-└── paper-reviews/          #   Paper review notes
+├── paper-reviews/          #   Paper review notes
+└── plans/                  #   Design / implementation plans
 ```
 
 ---
 
 ## 📋 Project Status
 
-> **v0.2.0 — Core architecture + two domain Skills implemented, iterating continuously** 🚧
+> **v0.2.1 — Core architecture + two domain Skills implemented, iterating continuously** 🚧
 
 | Metric | Data |
 |--------|------|
-| Version | `0.2.0` |
-| Core source files | 23 modules |
-| Test cases | 227 (all passing ✅) |
-| Test files | 29 (covering all layers) |
+| Version | `0.2.1` |
+| Core source files | 35 modules |
+| Test cases | 355 (all passing ✅) |
+| Test files | 53 (covering all layers) |
 | Domain Skills | 2 (social-media v0.2.0 · pmf-validation v0.2.0) |
-| Skill config files | 39 (profiles + prompts + scoring rubrics) |
+| Skill config files | 49 (metadata + profiles + prompts + schemas + examples + report templates) |
 | Social media platforms | 7 (Xiaohongshu · Douyin · Weibo · Bilibili · Zhihu · WeChat · Generic) |
 | PMF channels | 9 (8 propagation mechanism channels + 1 generic fallback) |
 | PMF industry verticals | 5 (FMCG · Fashion/Apparel · 3C · SaaS · Mobile Internet) |

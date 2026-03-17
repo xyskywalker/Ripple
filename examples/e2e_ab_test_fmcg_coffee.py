@@ -37,6 +37,7 @@ from e2e_helpers import (
     config_file_path,
     create_arg_parser,
     format_stats_block,
+    load_skill_report_bundle,
     load_simulation_log,
     print_compact_log,
     print_progress,
@@ -264,74 +265,22 @@ def _build_source(brand: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-# =============================================================================
-# 单组 PMF 报告提示词（a / b 单独运行时使用）
-# =============================================================================
-
-_INDIVIDUAL_SYSTEM_PREFIX = (
-    "你是 Ripple CAS（复杂自适应系统）PMF 验证模拟引擎的专业分析师。\n"
-    "你的任务是基于模拟引擎输出的结构化数据，生成人类友好的 PMF 验证解读报告。\n\n"
-    "【格式规范】\n"
-    "- 一律使用简体中文输出\n"
-    "- 用【】标记章节标题\n"
-    "- 不输出 JSON、代码块或 Markdown 格式，只输出纯文本\n"
-    "- 段落清晰、逻辑连贯，可直接展示给创业团队/产品团队阅读\n\n"
-    "【Agent 命名规范】\n"
-    "- 带 star_ 前缀的 Agent 显示为「星-」+ 中文描述\n"
-    "- 带 sea_ 前缀的 Agent 显示为「海-」+ 中文描述\n\n"
-    "【PMF 验证视角】\n"
-    "- 始终区分'促销驱动'与'需求驱动'的行为\n"
-    "- 始终区分'冲动消费'与'理性选择'的信号\n"
-    "- 对算法推荐电商渠道，重点关注复购率而非首购量\n"
-    "- 警惕将'算法给的流量'误读为'市场自发需求'\n"
-)
-
-
-def _build_individual_report_rounds() -> List[ReportRound]:
-    """构建单组 PMF 报告规范（3轮）。 / Build single-group PMF report specification (3 rounds)."""
-    extra_context = ""
-    stats_text = format_stats_block(
-        HISTORICAL_POSTS,
-        metrics=("views", "likes", "comments", "shares", "sales"),
-    )
-    if stats_text:
-        extra_context = f"## 补充：历史数据统计\n{stats_text}"
-
-    return [
-        ReportRound(
-            label="验证背景与模拟环境",
-            system_prompt=_INDIVIDUAL_SYSTEM_PREFIX + (
-                "当前任务：撰写 PMF 验证报告的前两个章节。\n\n"
-                "【验证背景】（100-150字）\n"
-                "概述本次 PMF 验证的背景：验证什么产品、核心定位、"
-                "所属行业特征、目标渠道。\n\n"
-                "【模拟环境设定】（200-300字）\n"
-                "解读全视者在初始化阶段的环境设定。\n"
-            ),
-            extra_user_context=extra_context,
-        ),
-        ReportRound(
-            label="传播过程与 PMF 信号",
-            system_prompt=_INDIVIDUAL_SYSTEM_PREFIX + (
-                "当前任务：撰写 PMF 验证报告的中间两个章节。\n\n"
-                "【传播过程回顾】（150-250字）\n"
-                "概述算法推荐电商渠道中的传播全貌。\n\n"
-                "【PMF 信号识别】（200-350字）\n"
-                "严格区分强 PMF 信号、弱 PMF 信号、伪 PMF 信号。\n"
-            ),
-        ),
-        ReportRound(
-            label="PMF 评级与行动建议",
-            system_prompt=_INDIVIDUAL_SYSTEM_PREFIX + (
-                "当前任务：撰写 PMF 验证报告的最后两个章节。\n\n"
-                "【PMF 评级判定】（150-250字）\n"
-                "基于合议庭讨论和模拟数据，给出 PMF 评级及核心依据。\n\n"
-                "【行动建议】（200-300字）\n"
-                "3-5 条具体可落地的下一步行动。\n"
-            ),
-            extra_user_context=extra_context,
-        ),
-    ]
+def _build_individual_report_bundle(
+    product: Dict[str, Any],
+    *,
+    group_label: str,
+) -> tuple[List[ReportRound], str, int]:
+    """从 skill 加载单组 PMF 报告模板。 / Load the single-run PMF report bundle from the skill."""
+    request: Dict[str, Any] = {
+        "skill": SKILL_NAME,
+        "platform": PLATFORM,
+        "channel": CHANNEL,
+        "vertical": VERTICAL,
+        "event": _build_event(product, group_label),
+        "source": _build_source(BRAND_ACCOUNT),
+        "historical": build_historical_from_posts(HISTORICAL_POSTS),
+    }
+    return load_skill_report_bundle(request)
 
 
 # =============================================================================
@@ -1179,11 +1128,14 @@ async def main() -> None:
 
     # ── A组单独运行 ──
     if args.mode == "a":
+        rounds_a, role_a, max_calls_a = _build_individual_report_bundle(PRODUCT_A, group_label="A")
         result_a = await run_and_interpret(
             "A组 PMF 验证（黑镜·零感）",
             run_a(waves),
             cfg,
-            report_rounds=_build_individual_report_rounds(),
+            report_rounds=rounds_a,
+            report_role=role_a,
+            report_max_llm_calls=max_calls_a,
             extra_summary_fields=_EXTRA_SUMMARY,
             no_report=no_report,
         )
@@ -1194,11 +1146,14 @@ async def main() -> None:
 
     # ── B组单独运行 ──
     elif args.mode == "b":
+        rounds_b, role_b, max_calls_b = _build_individual_report_bundle(PRODUCT_B, group_label="B")
         result_b = await run_and_interpret(
             "B组 PMF 验证（黑镜·云南）",
             run_b(waves),
             cfg,
-            report_rounds=_build_individual_report_rounds(),
+            report_rounds=rounds_b,
+            report_role=role_b,
+            report_max_llm_calls=max_calls_b,
             extra_summary_fields=_EXTRA_SUMMARY,
             no_report=no_report,
         )

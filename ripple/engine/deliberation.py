@@ -69,6 +69,20 @@ class DeliberationOrchestrator:
             return
         await self._on_progress(event_type, detail)
 
+    @staticmethod
+    def _serialize_opinions(opinions: List[TribunalOpinion]) -> List[Dict[str, Any]]:
+        """压缩意见结构供进度事件使用。 / Serialize opinions for progress events."""
+        payload: List[Dict[str, Any]] = []
+        for opinion in opinions:
+            payload.append(
+                {
+                    "member_role": opinion.member_role,
+                    "scores": dict(opinion.scores),
+                    "narrative": opinion.narrative,
+                }
+            )
+        return payload
+
     async def run(
         self,
         evidence_pack: Dict[str, Any],
@@ -112,6 +126,9 @@ class DeliberationOrchestrator:
                         "total_rounds": self.max_rounds,
                         "converged": False,
                         "challenge_count": 0,
+                        "consensus_points": record.consensus_points,
+                        "dissent_points": record.dissent_points,
+                        "opinions": self._serialize_opinions(opinions),
                     },
                 )
             else:
@@ -149,6 +166,9 @@ class DeliberationOrchestrator:
                         "total_rounds": self.max_rounds,
                         "converged": converged,
                         "challenge_count": len(challenges),
+                        "consensus_points": record.consensus_points,
+                        "dissent_points": record.dissent_points,
+                        "opinions": self._serialize_opinions(opinions),
                     },
                 )
 

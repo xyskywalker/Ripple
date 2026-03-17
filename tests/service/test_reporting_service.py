@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from ripple.service.reporting import generate_report_from_result, load_output_json_document
+from ripple.service.reporting import (
+    build_skill_report_profile,
+    generate_report_from_result,
+    load_output_json_document,
+)
 
 
 class _FakeAdapter:
@@ -97,3 +101,63 @@ def test_load_output_json_document_reads_json_file(tmp_path: Path) -> None:
     document = load_output_json_document({"output_file": str(output_json)})
 
     assert document == {"prediction": {"impact": "ok"}}
+
+
+def test_build_skill_report_profile_loads_rounds_and_injects_request_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    skill_dir = tmp_path / "skills" / "demo-skill"
+    prompts_dir = skill_dir / "prompts"
+    reports_dir = skill_dir / "reports"
+    platforms_dir = skill_dir / "platforms"
+    prompts_dir.mkdir(parents=True)
+    reports_dir.mkdir(parents=True)
+    platforms_dir.mkdir(parents=True)
+
+    (skill_dir / "SKILL.md").write_text(
+        "---\n"
+        "name: demo-skill\n"
+        "version: \"0.1.0\"\n"
+        "description: demo\n"
+        "prompts:\n"
+        "  omniscient: prompts/omniscient.md\n"
+        "  star: prompts/star.md\n"
+        "  sea: prompts/sea.md\n"
+        "domain_profile: domain-profile.md\n"
+        "---\n",
+        encoding="utf-8",
+    )
+    (skill_dir / "domain-profile.md").write_text("demo profile", encoding="utf-8")
+    (prompts_dir / "omniscient.md").write_text("omniscient", encoding="utf-8")
+    (prompts_dir / "star.md").write_text("star", encoding="utf-8")
+    (prompts_dir / "sea.md").write_text("sea", encoding="utf-8")
+    (platforms_dir / "generic.md").write_text("generic", encoding="utf-8")
+    (reports_dir / "default.yaml").write_text(
+        "description: demo report\n"
+        "role: omniscient\n"
+        "max_llm_calls: 5\n"
+        "system_prefix: 统一前缀\n"
+        "rounds:\n"
+        "  - label: 第一轮\n"
+        "    system_prompt: 输出中文总结\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    profile = build_skill_report_profile(
+        request={
+            "skill": "demo-skill",
+            "platform": "generic",
+            "event": {"title": "测试标题", "summary": "测试摘要"},
+            "source": {"summary": "账号画像摘要"},
+            "historical": [{"views": 100, "likes": 10}],
+        }
+    )
+
+    assert profile.role == "omniscient"
+    assert profile.max_llm_calls == 5
+    assert len(profile.rounds) == 1
+    assert "统一前缀" in profile.rounds[0].system_prompt
+    assert "测试标题" in profile.rounds[0].extra_user_context
+    assert "账号画像摘要" in profile.rounds[0].extra_user_context

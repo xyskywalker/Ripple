@@ -188,6 +188,43 @@ class SimulationRuntime:
         self._extra_phase_outputs: Dict[str, Any] = {}
         self._evidence_pack: Optional[Dict[str, Any]] = None
 
+    @staticmethod
+    def _short_text(value: Any, limit: int = 80) -> str:
+        """压缩长文本，便于终端展示。 / Compact long text for terminal display."""
+        text = " ".join(str(value or "").split())
+        if len(text) <= limit:
+            return text
+        return text[: max(0, limit - 1)] + "…"
+
+    @classmethod
+    def _short_agent_label_from_description(cls, description: str, fallback: str) -> str:
+        """从画像描述中提取短标签。 / Extract a short human label from an agent description."""
+        text = str(description or "").strip()
+        if not text:
+            return fallback
+        label = re.split(r"[，。；;：:\n|/（）()]", text, maxsplit=1)[0].strip()
+        return cls._short_text(label or text, limit=18) or fallback
+
+    def _agent_label(self, agent_id: str) -> str:
+        """返回适合终端展示的 Agent 短名。 / Return a short terminal-friendly label for an agent."""
+        agent = self._stars.get(agent_id) or self._seas.get(agent_id)
+        if agent is None:
+            return agent_id
+        return self._short_agent_label_from_description(
+            getattr(agent, "description", ""),
+            agent_id,
+        )
+
+    def _agent_labels(self, agents: Dict[str, Any]) -> List[str]:
+        """提取 Agent 短名列表。 / Collect short labels for agent groups."""
+        return [
+            self._short_agent_label_from_description(
+                getattr(agent, "description", ""),
+                agent_id,
+            )
+            for agent_id, agent in agents.items()
+        ]
+
     @classmethod
     def _process_key_for_phase(cls, phase_name: str) -> str:
         """Map phase name to recorder process key."""
@@ -309,6 +346,16 @@ class SimulationRuntime:
                     phase_end_detail = {
                         "rounds": summary.get("rounds_executed"),
                         "converged": summary.get("converged"),
+                        "consensus_points": list(summary.get("consensus_points") or []),
+                        "dissent_points": list(summary.get("dissent_points") or []),
+                        "final_positions": [
+                            {
+                                "member_role": item.get("member_role"),
+                                "scores": item.get("scores"),
+                            }
+                            for item in list(summary.get("final_positions") or [])[:3]
+                            if isinstance(item, dict)
+                        ],
                     }
 
             await self._emit(SimulationEvent(
@@ -408,6 +455,12 @@ class SimulationRuntime:
 
         dp = init_result.get("dynamic_parameters", {})
         wave_time_window = dp.get("wave_time_window", "")
+        wave_time_window_reasoning = str(
+            dp.get("wave_time_window_reasoning", "") or ""
+        )
+        platform_characteristics = str(
+            dp.get("platform_characteristics", "") or ""
+        )
         if isinstance(wave_time_window, (int, float)):
             wave_time_window = f"{wave_time_window}h"
         horizon_str = simulation_input.get("simulation_horizon", "")
@@ -445,6 +498,8 @@ class SimulationRuntime:
         self._energy_decay_per_wave = _extract_float(
             dp.get("energy_decay_per_wave", 0.15), 0.15
         )
+        self._wave_time_window_reasoning = wave_time_window_reasoning
+        self._platform_characteristics = platform_characteristics
 
         logger.info(
             f"[{run_id}] INIT 完成: "
@@ -457,7 +512,11 @@ class SimulationRuntime:
         # 增量记录：INIT 阶段结果 / Incremental record: INIT phase result
         if self._recorder:
             self._recorder.record_init(
-                init_result, estimated_waves, max_waves,
+                init_result,
+                estimated_waves,
+                max_waves,
+                safety_max_waves=safety_max_waves,
+                requested_max_waves=requested_max_waves,
             )
 
         await self._emit(SimulationEvent(
@@ -468,7 +527,14 @@ class SimulationRuntime:
                 "star_count": len(init_result.get("star_configs", [])),
                 "sea_count": len(init_result.get("sea_configs", [])),
                 "estimated_waves": estimated_waves,
+                "safety_max_waves": safety_max_waves,
+                "requested_max_waves": requested_max_waves,
                 "max_waves": max_waves,
+                "wave_time_window": wave_time_window,
+                "wave_time_window_reasoning": wave_time_window_reasoning,
+                "platform_characteristics": platform_characteristics,
+                "star_labels": self._agent_labels(self._stars),
+                "sea_labels": self._agent_labels(self._seas),
             },
         ))
         phase_context["init_result"] = init_result
@@ -552,12 +618,6 @@ class SimulationRuntime:
             logger.info(
                 f"[{run_id}] ━━━ Wave {wave_count + 1}/{estimated_waves} ━━━"
             )
-            await self._emit(SimulationEvent(
-                type="wave_start", phase="RIPPLE", run_id=run_id,
-                progress=self._progress("RIPPLE", wave_frac),
-                wave=wave_count, total_waves=estimated_waves,
-            ))
-
             # 增量记录：wave 启动前的场快照 / Incremental record: field snapshot before wave starts
             pre_snapshot = self._build_snapshot()
             if self._recorder:
@@ -572,6 +632,15 @@ class SimulationRuntime:
                 wave_time_window=wave_time_window,
                 simulation_horizon=horizon_str,
             )
+
+            await self._emit(SimulationEvent(
+                type="wave_start", phase="RIPPLE", run_id=run_id,
+                progress=self._progress("RIPPLE", wave_frac),
+                wave=wave_count, total_waves=estimated_waves,
+                detail={
+                    "global_observation": verdict.global_observation,
+                },
+            ))
 
             if not verdict.continue_propagation:
                 logger.info(
@@ -591,9 +660,17 @@ class SimulationRuntime:
                     type="wave_end", phase="RIPPLE", run_id=run_id,
                     progress=self._progress("RIPPLE", wave_frac),
                     wave=wave_count, total_waves=estimated_waves,
-                    detail={"terminated": True,
-                            "reason": verdict.termination_reason
-                            or "全视者判定终止"},
+                    detail={
+                        "terminated": True,
+                        "reason": verdict.termination_reason
+                        or "全视者判定终止",
+                        "cas_signal": self._short_text(
+                            verdict.global_observation
+                            or verdict.termination_reason
+                            or "全视者判定终止",
+                            limit=120,
+                        ),
+                    },
                 ))
                 break
 
@@ -629,7 +706,11 @@ class SimulationRuntime:
                     progress=self._progress("RIPPLE", wave_frac),
                     wave=wave_count, total_waves=estimated_waves,
                     agent_id=aid, agent_type=atype,
-                    detail={"energy": activation.incoming_ripple_energy},
+                    detail={
+                        "energy": activation.incoming_ripple_energy,
+                        "agent_label": self._agent_label(aid),
+                        "activation_reason": activation.activation_reason,
+                    },
                 ))
 
             # 并行激活被选中的 Agent / Activate selected agents in parallel
@@ -640,12 +721,22 @@ class SimulationRuntime:
             # 通知每个 Agent 的响应 / Notify each agent's response
             for aid, resp in responses.items():
                 atype = "sea" if aid in self._seas else "star"
+                response_preview = (
+                    resp.get("cluster_reaction")
+                    or resp.get("response_content")
+                    or resp.get("reasoning")
+                    or ""
+                )
                 await self._emit(SimulationEvent(
                     type="agent_responded", phase="RIPPLE", run_id=run_id,
                     progress=self._progress("RIPPLE", wave_frac),
                     wave=wave_count, total_waves=estimated_waves,
                     agent_id=aid, agent_type=atype,
-                    detail=resp,
+                    detail={
+                        **resp,
+                        "agent_label": self._agent_label(aid),
+                        "response_preview": self._short_text(response_preview, limit=120),
+                    },
                 ))
 
             # 记录本轮 / Record this wave
@@ -675,12 +766,35 @@ class SimulationRuntime:
                 )
 
             wave_count += 1
+            response_mix: Dict[str, int] = {}
+            response_notes: List[str] = []
+            for aid, resp in responses.items():
+                rtype = str(resp.get("response_type", "unknown"))
+                response_mix[rtype] = response_mix.get(rtype, 0) + 1
+                response_text = (
+                    resp.get("cluster_reaction")
+                    or resp.get("response_content")
+                    or resp.get("reasoning")
+                    or ""
+                )
+                if response_text:
+                    response_notes.append(
+                        f"{self._agent_label(aid)}：{self._short_text(response_text, limit=24)}"
+                    )
+            cas_signal = self._short_text(
+                verdict.global_observation or "；".join(response_notes[:2]),
+                limit=120,
+            )
             await self._emit(SimulationEvent(
                 type="wave_end", phase="RIPPLE", run_id=run_id,
                 progress=self._progress("RIPPLE",
                                         wave_count / max(estimated_waves, 1)),
                 wave=wave_count - 1, total_waves=estimated_waves,
-                detail={"agent_count": len(responses)},
+                detail={
+                    "agent_count": len(responses),
+                    "response_mix": response_mix,
+                    "cas_signal": cas_signal,
+                },
             ))
         else:
             logger.warning(
@@ -752,6 +866,9 @@ class SimulationRuntime:
             type="phase_end", phase="OBSERVE", run_id=run_id,
             progress=self._progress("OBSERVE", 1.0),
             total_waves=estimated_waves,
+            detail={
+                "observation_preview": observation,
+            },
         ))
         phase_context["observation"] = observation
         phase_context["field_snapshot"] = self._build_snapshot()
@@ -797,7 +914,19 @@ class SimulationRuntime:
             type="phase_end", phase="SYNTHESIZE", run_id=run_id,
             progress=1.0,
             total_waves=estimated_waves,
-            detail={"total_waves": effective_waves},
+            detail={
+                "total_waves": effective_waves,
+                "prediction_verdict": self._short_text(
+                    (
+                        result.get("prediction", {}).get("verdict")
+                        if isinstance(result.get("prediction"), dict)
+                        else result.get("prediction")
+                    )
+                    or result.get("prediction_verdict")
+                    or "",
+                    limit=160,
+                ),
+            },
         ))
         return result
 

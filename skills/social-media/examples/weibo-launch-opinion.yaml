@@ -1,0 +1,26 @@
+title: 微博新品发布舆情扩散模拟
+summary: 用于评估品牌新品发布信息在微博上的扩散路径、评论分化和潜在争议点。
+use_when: 适合品牌公关、市场团队在新品发布前预判微博上的舆情走势与争议风险。
+tags:
+  - weibo
+  - launch
+  - public-opinion
+command:
+  skill: social-media
+  platform: weibo
+  output_path: ./outputs
+  simulation_horizon: 48h
+request:
+  event:
+    title: 某国产机器人品牌发布春晚同款家用机器人
+    body: 品牌计划在微博发布“春晚同款家用机器人正式发售”的消息，内容主打技术突破、家庭陪伴和情绪价值，并强调量产价格比预期更低。希望评估这条消息是否会获得科技媒体和普通用户的自发讨论，以及是否会因为“噱头大于实用”引发争议。
+    summary: 新品机器人微博发布，关注科技媒体扩散与大众评论分化。
+    content_type: post
+  source:
+    author_profile: 品牌官方微博，具备一定媒体关系，但普通消费者互动深度一般。
+    account_name: 未来家庭机器人
+    bio: 关注家庭机器人、具身智能与智能硬件体验
+    followers_count: 56000
+    posts_count: 320
+    verification_status: official
+    summary: 品牌官方微博，粉丝 5.6 万，内容以品牌动态和产品更新为主。

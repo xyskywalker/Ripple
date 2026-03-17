@@ -1,0 +1,29 @@
+{
+  "skill": "pmf-validation",
+  "platform": "xiaohongshu",
+  "channel": "content-seeding",
+  "vertical": "saas",
+  "simulation_horizon": "7d",
+  "ensemble_runs": 1,
+  "deliberation_rounds": 3,
+  "report": 1,
+  "redact_input": false,
+  "event": {
+    "title": "<validation-title>",
+    "summary": "<product-summary>",
+    "description": "<full-product-background>",
+    "product_name": "<product-name>",
+    "category": "<product-category>",
+    "differentiators": [
+      "<differentiator-1>",
+      "<differentiator-2>"
+    ],
+    "validation_question": "<core-pmf-question>"
+  },
+  "source": {
+    "account_name": "<account-name>",
+    "bio": "<account-bio>",
+    "target_audience": "<target-audience>",
+    "summary": "<account-summary>"
+  }
+}

@@ -195,7 +195,20 @@ class TestExtraPhaseExecution:
             await emit_progress(
                 "round_end",
                 phase_fraction=1 / 3,
-                detail={"round_number": 1, "total_rounds": 3, "converged": False},
+                detail={
+                    "round_number": 1,
+                    "total_rounds": 3,
+                    "converged": False,
+                    "consensus_points": ["reach_realism"],
+                    "dissent_points": ["virality_plausibility"],
+                    "opinions": [
+                        {
+                            "member_role": "PropagationDynamicist",
+                            "scores": {"reach_realism": 3},
+                            "narrative": "冷启动限制明显。",
+                        }
+                    ],
+                },
             )
             return {"ok": True}
 
@@ -260,3 +273,6 @@ class TestExtraPhaseExecution:
         ]
         assert "round_start" in deliberate_round_types
         assert "round_end" in deliberate_round_types
+        round_end = next(event for event in events if event.phase == "DELIBERATE" and event.type == "round_end")
+        assert round_end.detail["consensus_points"] == ["reach_realism"]
+        assert round_end.detail["opinions"][0]["member_role"] == "PropagationDynamicist"

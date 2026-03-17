@@ -1,0 +1,42 @@
+title: 抖音快消品算法电商 PMF 验证
+summary: 用于评估快消新品在抖音算法推荐 + 直播带货场景下是否具备真实转化和复购基础。
+use_when: 适合消费品牌在正式放大达人投放或品牌自播预算前，先判断产品与渠道是否真正匹配。
+tags:
+  - pmf
+  - douyin
+  - fmcg
+  - algorithm-ecommerce
+command:
+  skill: pmf-validation
+  platform: douyin
+  channel: algorithm-ecommerce
+  vertical: fmcg
+  output_path: ./outputs
+  simulation_horizon: 7d
+request:
+  event:
+    title: 清泉气泡水 - 抖音电商 PMF 验证
+    description: 清泉气泡水是一款主打真实果汁 + 0糖 0脂概念的气泡水新品，目标人群为 25-35 岁注重健康但不愿牺牲口感的都市白领。首发 SKU 为青柠味和白桃味，建议零售价 6.8 元/瓶，首发渠道为抖音电商。
+    summary: 产品：清泉气泡水 | 品类：0 糖气泡水 | 定价：6.8 元/瓶 | 差异点：巴氏鲜榨果汁工艺、0 糖 0 脂 0 卡、天然气泡水源
+    product_name: 清泉气泡水
+    category: 0糖气泡水
+    price: 6.8 元/瓶
+    differentiators:
+      - 巴氏鲜榨果汁工艺
+      - 0糖0脂0卡
+      - 天然气泡水源
+      - 清透感包装设计
+    target_channel: 抖音电商（算法推荐流 + 直播带货）
+    validation_question: 清泉气泡水作为一款 0 糖气泡水新品，通过抖音电商渠道能否验证 PMF？消费者在冲动下单后是否会产生真实复购需求？
+  source:
+    account_name: 清泉气泡水官方旗舰店
+    bio: 真实果汁 × 0 糖气泡 | 喝得到果味，查得到 0 糖
+    platform_code: douyin
+    main_category: 食品饮料
+    content_style: 清新自然风、产品特写 + 场景化饮用、强调成分透明
+    target_audience: 25-35 岁都市白领、健康饮品爱好者、健身人群
+    followers_count: 8500
+    posts_count: 23
+    verification_status: enterprise
+    summary: 品牌账号：清泉气泡水官方旗舰店 | 粉丝数：8500 | 内容风格：清新自然风
+

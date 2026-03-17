@@ -1,0 +1,42 @@
+title: 小红书 SaaS 内容种草 PMF 验证
+summary: 用于验证协作效率类 SaaS 产品能否通过小红书内容种草获得真实兴趣、试用和付费意愿。
+use_when: 适合 B2B SaaS 团队在正式投流前，用自然内容种草方式预判目标用户是否真的被痛点击中。
+tags:
+  - pmf
+  - saas
+  - xiaohongshu
+  - content-seeding
+command:
+  skill: pmf-validation
+  platform: xiaohongshu
+  channel: content-seeding
+  vertical: saas
+  output_path: ./outputs
+  simulation_horizon: 7d
+request:
+  event:
+    title: 轻量 AI 会议纪要工具 - 小红书内容种草 PMF 验证
+    description: 一款面向 10-100 人团队的 AI 会议纪要工具，支持实时转写、自动提炼待办、按项目归档，并可一键同步到飞书和企业微信。核心卖点是不开会后补纪要、不遗漏责任人、不丢项目上下文。定价为每人每月 39 元。
+    summary: 产品：AI 会议纪要工具 | 品类：SaaS 协作效率工具 | 定价：39 元/人/月 | 目标用户：10-100 人团队中的创始人、运营、项目经理、销售和客户成功 | 核心差异点：实时转写、自动待办提炼、项目级知识沉淀、飞书/企微同步
+    product_name: 轻量 AI 会议纪要工具
+    category: SaaS 协作效率工具
+    price: 39 元/人/月
+    differentiators:
+      - 实时转写
+      - 自动提炼待办
+      - 项目级知识沉淀
+      - 飞书/企微同步
+    target_channel: 小红书内容种草
+    validation_question: 这款 AI 会议纪要工具通过小红书内容种草渠道，能否验证 SaaS 场景下的 PMF？目标用户是否会因为效率痛点产生真实兴趣、试用和持续付费意愿？
+  source:
+    account_name: 效率工具研究所
+    bio: 分享团队协作、AI 提效和 SaaS 工具实践
+    platform_code: xiaohongshu
+    main_category: 职场效率
+    content_style: 真实经验分享 + 工具拆解
+    target_audience: 创业团队、运营负责人、项目经理、中小企业管理者
+    followers_count: 8200
+    posts_count: 126
+    verification_status: personal
+    summary: 账号：效率工具研究所 | 粉丝数：8200 | 风格：真实经验分享 + 工具拆解
+
