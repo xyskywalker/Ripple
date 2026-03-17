@@ -47,14 +47,14 @@ def test_ripple_orchestrator_layout_contract():
 
     content = install_script.read_text(encoding="utf-8")
     assert ".openclaw/skills" in content
-    assert "ripple-orchestrator" in content
+    assert 'TARGET_DIR="${TARGET_ROOT}/ripple"' in content
 
 
 def test_install_script_installs_to_override_and_returns_json(tmp_path):
     repo_root = Path(__file__).resolve().parents[2]
     install_script = repo_root / "integrations" / "openclaw" / "install_local_skill.sh"
     skills_root = tmp_path / 'skills "qa"\b\f'
-    expected_target = skills_root / "ripple-orchestrator"
+    expected_target = skills_root / "ripple"
 
     result = _run_installer(install_script, skills_root)
     assert result.returncode == 0, result.stderr
@@ -75,7 +75,7 @@ def test_install_script_does_not_delete_existing_on_missing_source(tmp_path):
     broken_script.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
     skills_root = tmp_path / "skills-root"
-    target_dir = skills_root / "ripple-orchestrator"
+    target_dir = skills_root / "ripple"
     target_dir.mkdir(parents=True)
     sentinel = target_dir / "keep.txt"
     sentinel.write_text("do not delete", encoding="utf-8")
@@ -89,7 +89,7 @@ def test_install_script_replaces_existing_installed_tree(tmp_path):
     repo_root = Path(__file__).resolve().parents[2]
     install_script = repo_root / "integrations" / "openclaw" / "install_local_skill.sh"
     skills_root = tmp_path / "skills-root"
-    target_dir = skills_root / "ripple-orchestrator"
+    target_dir = skills_root / "ripple"
     target_dir.mkdir(parents=True)
     stale = target_dir / "stale.txt"
     stale.write_text("old install", encoding="utf-8")
@@ -108,7 +108,7 @@ def test_install_script_rolls_back_when_replace_move_fails(tmp_path):
     repo_root = Path(__file__).resolve().parents[2]
     install_script = repo_root / "integrations" / "openclaw" / "install_local_skill.sh"
     skills_root = tmp_path / "skills-root"
-    target_dir = skills_root / "ripple-orchestrator"
+    target_dir = skills_root / "ripple"
     target_dir.mkdir(parents=True)
     sentinel = target_dir / "keep.txt"
     sentinel.write_text("old tree", encoding="utf-8")

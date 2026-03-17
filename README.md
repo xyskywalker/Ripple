@@ -93,7 +93,7 @@ Ripple 目前已实现**两个应用场景**：
 curl -fsSL https://raw.githubusercontent.com/xyskywalker/Ripple/main/install.sh | bash
 ```
 
-如果本机已安装并运行 OpenClaw，脚本会自动安装 `ripple-orchestrator` skill；否则只完成 Ripple 本体安装。
+如果本机已安装并运行 OpenClaw，脚本会自动安装 `ripple` skill；否则只完成 Ripple 本体安装。
 
 ---
 

@@ -53,7 +53,7 @@ def test_skill_docs_expose_complete_openclaw_surface_area():
     assert skill_md.exists()
     content = skill_md.read_text(encoding="utf-8")
 
-    assert content.startswith("---\nname: ripple-orchestrator\n")
+    assert content.startswith("---\nname: ripple\n")
     assert "not a Ripple domain skill" in content
     assert "--json" in content
     assert "30 seconds" in content

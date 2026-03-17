@@ -93,7 +93,7 @@ To wire Ripple straight into OpenClaw, run:
 curl -fsSL https://raw.githubusercontent.com/xyskywalker/Ripple/main/install.sh | bash
 ```
 
-If OpenClaw is already installed and running locally, the script will also install the `ripple-orchestrator` skill automatically. Otherwise, it just installs Ripple itself.
+If OpenClaw is already installed and running locally, the script will also install the `ripple` skill automatically. Otherwise, it just installs Ripple itself.
 
 ---
 

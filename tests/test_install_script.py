@@ -437,7 +437,7 @@ def test_install_script_installs_openclaw_skill_even_when_gateway_mode_is_remote
     home_dir = tmp_path / "home"
     home_dir.mkdir()
     skills_dir = home_dir / ".openclaw" / "skills"
-    target_dir = skills_dir / "ripple-orchestrator"
+    target_dir = skills_dir / "ripple"
     public_bin_dir = tmp_path / "public-bin"
 
     result = _run_install_script(
@@ -448,6 +448,9 @@ def test_install_script_installs_openclaw_skill_even_when_gateway_mode_is_remote
             "FAKE_PYTHON_VERSION": "3.11.9",
             "FAKE_OPENCLAW_GATEWAY_MODE": "remote",
             "RIPPLE_PUBLIC_BIN_DIR": str(public_bin_dir),
+            "RIPPLE_OPENCLAW_INSTALLER_PATH": str(
+                ROOT / "integrations" / "openclaw" / "install_local_skill.sh"
+            ),
             "RIPPLE_REPO_URL": str(ROOT),
         },
     )
@@ -455,7 +458,7 @@ def test_install_script_installs_openclaw_skill_even_when_gateway_mode_is_remote
     assert result.returncode == 0, result.stdout + result.stderr
     assert target_dir.is_dir()
     assert "OpenClaw" in result.stdout
-    assert "ripple-orchestrator" in result.stdout
+    assert "ripple" in result.stdout
     openclaw_calls = openclaw_log.read_text(encoding="utf-8")
     assert "config set" not in openclaw_calls
     assert "config validate" not in openclaw_calls
@@ -473,7 +476,7 @@ def test_install_script_installs_openclaw_skill_even_when_gateway_rpc_probe_fail
     home_dir = tmp_path / "home"
     home_dir.mkdir()
     skills_dir = home_dir / ".openclaw" / "skills"
-    target_dir = skills_dir / "ripple-orchestrator"
+    target_dir = skills_dir / "ripple"
     public_bin_dir = tmp_path / "public-bin"
 
     result = _run_install_script(
@@ -485,6 +488,9 @@ def test_install_script_installs_openclaw_skill_even_when_gateway_rpc_probe_fail
             "FAKE_OPENCLAW_GATEWAY_MODE": "local",
             "FAKE_OPENCLAW_GATEWAY_STATUS_EXIT_CODE": "1",
             "RIPPLE_PUBLIC_BIN_DIR": str(public_bin_dir),
+            "RIPPLE_OPENCLAW_INSTALLER_PATH": str(
+                ROOT / "integrations" / "openclaw" / "install_local_skill.sh"
+            ),
             "RIPPLE_REPO_URL": str(ROOT),
         },
     )
@@ -492,7 +498,7 @@ def test_install_script_installs_openclaw_skill_even_when_gateway_rpc_probe_fail
     assert result.returncode == 0, result.stdout + result.stderr
     assert target_dir.is_dir()
     assert "OpenClaw" in result.stdout
-    assert "ripple-orchestrator" in result.stdout
+    assert "ripple" in result.stdout
     openclaw_calls = openclaw_log.read_text(encoding="utf-8")
     assert "config set" not in openclaw_calls
     assert "config validate" not in openclaw_calls
@@ -510,7 +516,7 @@ def test_install_script_installs_openclaw_skill_when_local_gateway_is_running(tm
     home_dir = tmp_path / "home"
     home_dir.mkdir()
     skills_dir = home_dir / ".openclaw" / "skills"
-    target_dir = skills_dir / "ripple-orchestrator"
+    target_dir = skills_dir / "ripple"
     public_bin_dir = tmp_path / "public-bin"
 
     result = _run_install_script(
@@ -533,7 +539,7 @@ def test_install_script_installs_openclaw_skill_when_local_gateway_is_running(tm
     assert result.returncode == 0, result.stdout + result.stderr
     assert target_dir.is_dir()
     assert (target_dir / "SKILL.md").is_file()
-    assert "ripple-orchestrator" in result.stdout
+    assert "ripple" in result.stdout
     assert "OpenClaw" in result.stdout
     assert "session" in result.stdout
 

@@ -26,6 +26,17 @@ class TestSkillLoading:
         manager = SkillManager()
         paths = manager._build_default_paths()
         assert Path.cwd() / "skills" in paths
+        assert Path.home() / ".ripple" / "src" / "Ripple" / "skills" in paths
+
+    def test_default_search_paths_respect_ripple_home_dir_env(self, monkeypatch, tmp_path):
+        """默认搜索路径应尊重 RIPPLE_HOME_DIR。 / Default search paths should respect RIPPLE_HOME_DIR."""
+        custom_ripple_home = tmp_path / "custom-ripple-home"
+        monkeypatch.setenv("RIPPLE_HOME_DIR", str(custom_ripple_home))
+
+        manager = SkillManager()
+        paths = manager._build_default_paths()
+
+        assert custom_ripple_home / "src" / "Ripple" / "skills" in paths
 
     def test_load_social_media_skill(self):
         """加载 social-media Skill。 / Load social-media skill."""

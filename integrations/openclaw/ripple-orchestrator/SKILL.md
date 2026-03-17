@@ -1,5 +1,5 @@
 ---
-name: ripple-orchestrator
+name: ripple
 description: Orchestrates Ripple CLI inside OpenClaw for installation, domain guidance, request validation, async simulation submission, 30-second polling, historical job lookup, cancellation, and explicit cleanup. Use when the user wants to run or manage Ripple simulations without leaving OpenClaw.
 compatibility: Designed for OpenClaw. Requires bash, local filesystem access, and either a working ripple-cli binary or this repository's install.sh path.
 metadata:
@@ -7,7 +7,7 @@ metadata:
   repository: Ripple-Dev
 ---
 
-# Ripple Orchestrator
+# Ripple
 
 This is an OpenClaw orchestration skill. It is not a Ripple domain skill.
 

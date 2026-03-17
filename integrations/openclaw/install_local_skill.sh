@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="${SCRIPT_DIR}/ripple-orchestrator"
 TARGET_ROOT="${OPENCLAW_SKILLS_DIR:-$HOME/.openclaw/skills}"
-TARGET_DIR="${TARGET_ROOT}/ripple-orchestrator"
+TARGET_DIR="${TARGET_ROOT}/ripple"
 STAGING_DIR=""
 BACKUP_DIR=""
 
@@ -14,7 +14,7 @@ if [[ ! -d "${SRC_DIR}" ]]; then
 fi
 
 mkdir -p "${TARGET_ROOT}"
-STAGING_DIR="$(mktemp -d "${TARGET_ROOT}/.ripple-orchestrator.staging.XXXXXX")"
+STAGING_DIR="$(mktemp -d "${TARGET_ROOT}/.ripple.staging.XXXXXX")"
 
 cleanup() {
   rm -rf "${STAGING_DIR}"
@@ -57,16 +57,16 @@ json_escape() {
   printf '%s' "${out}"
 }
 
-cp -R "${SRC_DIR}" "${STAGING_DIR}/ripple-orchestrator"
+cp -R "${SRC_DIR}" "${STAGING_DIR}/ripple"
 
 if [[ -e "${TARGET_DIR}" ]]; then
-  BACKUP_DIR="$(mktemp -d "${TARGET_ROOT}/.ripple-orchestrator.backup.XXXXXX")"
-  mv "${TARGET_DIR}" "${BACKUP_DIR}/ripple-orchestrator"
+  BACKUP_DIR="$(mktemp -d "${TARGET_ROOT}/.ripple.backup.XXXXXX")"
+  mv "${TARGET_DIR}" "${BACKUP_DIR}/ripple"
 fi
 
-if ! mv "${STAGING_DIR}/ripple-orchestrator" "${TARGET_DIR}"; then
-  if [[ -n "${BACKUP_DIR}" && -e "${BACKUP_DIR}/ripple-orchestrator" ]]; then
-    if ! /bin/mv "${BACKUP_DIR}/ripple-orchestrator" "${TARGET_DIR}"; then
+if ! mv "${STAGING_DIR}/ripple" "${TARGET_DIR}"; then
+  if [[ -n "${BACKUP_DIR}" && -e "${BACKUP_DIR}/ripple" ]]; then
+    if ! /bin/mv "${BACKUP_DIR}/ripple" "${TARGET_DIR}"; then
       printf 'failed to restore original skill to target: %s\n' "${TARGET_DIR}" >&2
     fi
   fi
@@ -74,7 +74,7 @@ if ! mv "${STAGING_DIR}/ripple-orchestrator" "${TARGET_DIR}"; then
   exit 1
 fi
 
-if [[ -n "${BACKUP_DIR}" && -e "${BACKUP_DIR}/ripple-orchestrator" ]]; then
-  rm -rf "${BACKUP_DIR}/ripple-orchestrator"
+if [[ -n "${BACKUP_DIR}" && -e "${BACKUP_DIR}/ripple" ]]; then
+  rm -rf "${BACKUP_DIR}/ripple"
 fi
 printf '{"ok":true,"target":"%s"}\n' "$(json_escape "${TARGET_DIR}")"
