@@ -377,18 +377,21 @@ curl -sS -X POST "$BASE_URL/v1/simulations/<JOB_ID>/report" \
 
 - 检测 `git`、`Python 3.11+` 和 `pip`
 - 将源码安装到 `~/.ripple/src/Ripple`
-- 优先使用当前已激活的 Python 虚拟环境；若未激活，则回退到系统 `python3`
-- 执行 `pip install -e .`
+- 优先使用当前已激活的 Python 虚拟环境；若命中 PEP 668，则自动回退到 `~/.ripple/venv`
+- 自动安装全局 `ripple-cli` 命令
 - 在需要时准备 `llm_config.yaml`
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xyskywalker/Ripple/main/install.sh | bash
 ```
 
-安装完成后，脚本会打印：
+安装完成后，直接执行：
 
-- 交互式配置命令：`cd ~/.ripple/src/Ripple && ripple-cli llm setup`
-- 配置文件完整路径：`~/.ripple/src/Ripple/llm_config.yaml`
+```bash
+ripple-cli llm setup
+```
+
+配置文件完整路径：`~/.ripple/src/Ripple/llm_config.yaml`
 
 #### 安装
 

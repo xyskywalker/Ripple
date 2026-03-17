@@ -1,7 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${RIPPLE_CLI_BIN:=ripple-cli}"
+resolve_ripple_cli_bin() {
+  if [[ -n "${RIPPLE_CLI_BIN:-}" ]]; then
+    printf '%s\n' "${RIPPLE_CLI_BIN}"
+    return 0
+  fi
+
+  if [[ -x "${HOME}/.ripple/bin/ripple-cli" ]]; then
+    printf '%s\n' "${HOME}/.ripple/bin/ripple-cli"
+    return 0
+  fi
+
+  if command -v ripple-cli >/dev/null 2>&1; then
+    command -v ripple-cli
+    return 0
+  fi
+
+  printf '%s\n' "ripple-cli"
+}
 
 append_flag_if_missing() {
   local flag="$1"
@@ -36,8 +53,11 @@ append_option_if_missing() {
 }
 
 run_ripple_cli() {
+  local cli_bin
   local -a args=()
   local arg
+
+  cli_bin="$(resolve_ripple_cli_bin)"
 
   if (($# == 0)); then
     args=(--json)
@@ -47,5 +67,5 @@ run_ripple_cli() {
     done < <(append_flag_if_missing "--json" "$@")
   fi
 
-  "${RIPPLE_CLI_BIN}" "${args[@]}"
+  "${cli_bin}" "${args[@]}"
 }

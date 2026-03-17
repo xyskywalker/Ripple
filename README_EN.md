@@ -377,18 +377,21 @@ Works on macOS / Linux / Windows (WSL). The script will:
 
 - check for `git`, `Python 3.11+`, and `pip`
 - install the source tree into `~/.ripple/src/Ripple`
-- prefer the currently activated Python virtual environment; otherwise fall back to system `python3`
-- run `pip install -e .`
+- prefer the currently activated Python virtual environment; if PEP 668 blocks system install, automatically fall back to `~/.ripple/venv`
+- install a global `ripple-cli` command automatically
 - prepare `llm_config.yaml` when needed
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xyskywalker/Ripple/main/install.sh | bash
 ```
 
-When the installer finishes, it prints:
+When the installer finishes, run:
 
-- the interactive setup command: `cd ~/.ripple/src/Ripple && ripple-cli llm setup`
-- the full config file path: `~/.ripple/src/Ripple/llm_config.yaml`
+```bash
+ripple-cli llm setup
+```
+
+The full config file path is: `~/.ripple/src/Ripple/llm_config.yaml`
 
 #### Installation
 

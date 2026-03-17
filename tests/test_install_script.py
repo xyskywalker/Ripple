@@ -9,12 +9,24 @@ ROOT = Path(__file__).resolve().parents[1]
 INSTALL_SCRIPT = ROOT / "install.sh"
 
 
-def _write_fake_python(path: Path, log_path: Path, version: str = "3.11.9") -> None:
+def _write_fake_python(
+    path: Path,
+    log_path: Path,
+    version: str = "3.11.9",
+    *,
+    kind: str = "system",
+    venv_log_path: Path | None = None,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    script = """#!/usr/bin/env bash
+    effective_venv_log_path = venv_log_path or log_path
+    script = r"""#!/usr/bin/env bash
 set -euo pipefail
 
-log_file="__LOG_FILE__"
+default_log_file="__LOG_FILE__"
+log_file="${FAKE_PYTHON_LOG:-$default_log_file}"
+kind="${FAKE_PYTHON_KIND:-__KIND__}"
+self_path="__SELF_PATH__"
+venv_log_file="__VENV_LOG_FILE__"
 printf '%s\\n' "$*" >> "$log_file"
 
 if [ "${1:-}" = "-c" ]; then
@@ -30,16 +42,43 @@ if [ "${1:-}" = "-m" ] && [ "${2:-}" = "pip" ] && [ "${3:-}" = "--version" ]; th
   exit 0
 fi
 
+if [ "${1:-}" = "-m" ] && [ "${2:-}" = "venv" ] && [ -n "${3:-}" ]; then
+  target_dir="${3}"
+  mkdir -p "${target_dir}/bin"
+  cat > "${target_dir}/bin/python" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+FAKE_PYTHON_KIND=venv FAKE_PYTHON_LOG="${venv_log_file}" exec "${self_path}" "\$@"
+EOF
+  chmod +x "${target_dir}/bin/python"
+  exit 0
+fi
+
 if [ "${1:-}" = "-m" ] && [ "${2:-}" = "pip" ] && [ "${3:-}" = "install" ]; then
+  if [ "${kind}" = "system" ] && [ "${FAKE_PYTHON_PEP668_ON_INSTALL:-0}" = "1" ]; then
+    cat >&2 <<'EOF'
+error: externally-managed-environment
+
+× This environment is externally managed
+EOF
+    exit 1
+  fi
   exit 0
 fi
 
 printf 'unexpected fake python args: %s\\n' "$*" >&2
 exit 1
 """
-    path.write_text(script.replace("__LOG_FILE__", str(log_path)), encoding="utf-8")
+    path.write_text(
+        script.replace("__LOG_FILE__", str(log_path))
+        .replace("__KIND__", kind)
+        .replace("__SELF_PATH__", str(path))
+        .replace("__VENV_LOG_FILE__", str(effective_venv_log_path)),
+        encoding="utf-8",
+    )
     path.chmod(0o755)
     log_path.touch()
+    effective_venv_log_path.touch()
 
 
 def _write_fake_openclaw(path: Path, log_path: Path, config_set_log: Path) -> None:
@@ -114,29 +153,34 @@ def test_install_script_clones_repo_installs_and_bootstraps_config(tmp_path: Pat
 
     home_dir = tmp_path / "home"
     home_dir.mkdir()
+    public_bin_dir = tmp_path / "public-bin"
 
     result = _run_install_script(
         tmp_path,
         {
             "HOME": str(home_dir),
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
-            "FAKE_PYTHON_LOG": str(fake_python_log),
             "FAKE_PYTHON_VERSION": "3.11.9",
+            "RIPPLE_PUBLIC_BIN_DIR": str(public_bin_dir),
             "RIPPLE_REPO_URL": str(ROOT),
         },
     )
 
     repo_dir = home_dir / ".ripple" / "src" / "Ripple"
     config_path = repo_dir / "llm_config.yaml"
+    internal_cli_path = home_dir / ".ripple" / "bin" / "ripple-cli"
+    public_cli_path = public_bin_dir / "ripple-cli"
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert repo_dir.is_dir()
     assert config_path.is_file()
+    assert internal_cli_path.is_file()
+    assert public_cli_path.exists()
     assert config_path.read_text(encoding="utf-8").strip()
     assert "🌊" in result.stdout
     assert "Ripple" in result.stdout
     assert "ripple-cli llm setup" in result.stdout
-    assert f'cd "{repo_dir}" && ripple-cli llm setup' in result.stdout
+    assert str(public_cli_path) in result.stdout
     assert str(config_path) in result.stdout
     assert "-m pip install -e ." in fake_python_log.read_text(encoding="utf-8")
 
@@ -148,10 +192,11 @@ def test_install_script_prefers_active_virtualenv_python(tmp_path: Path) -> None
 
     venv_dir = tmp_path / "venv"
     venv_python_log = tmp_path / "venv-python.log"
-    _write_fake_python(venv_dir / "bin" / "python", venv_python_log)
+    _write_fake_python(venv_dir / "bin" / "python", venv_python_log, kind="venv")
 
     home_dir = tmp_path / "home"
     home_dir.mkdir()
+    public_bin_dir = tmp_path / "public-bin"
 
     result = _run_install_script(
         tmp_path,
@@ -159,8 +204,8 @@ def test_install_script_prefers_active_virtualenv_python(tmp_path: Path) -> None
             "HOME": str(home_dir),
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
             "VIRTUAL_ENV": str(venv_dir),
-            "FAKE_PYTHON_LOG": str(system_python_log),
             "FAKE_PYTHON_VERSION": "3.11.9",
+            "RIPPLE_PUBLIC_BIN_DIR": str(public_bin_dir),
             "RIPPLE_REPO_URL": str(ROOT),
         },
     )
@@ -168,6 +213,82 @@ def test_install_script_prefers_active_virtualenv_python(tmp_path: Path) -> None
     assert result.returncode == 0, result.stdout + result.stderr
     assert "-m pip install -e ." in venv_python_log.read_text(encoding="utf-8")
     assert "-m pip install -e ." not in system_python_log.read_text(encoding="utf-8")
+
+
+def test_install_script_falls_back_to_private_venv_on_pep668(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "fake-bin"
+    system_python_log = tmp_path / "system-python.log"
+    private_venv_python_log = tmp_path / "private-venv-python.log"
+    _write_fake_python(
+        fake_bin / "python3",
+        system_python_log,
+        venv_log_path=private_venv_python_log,
+    )
+
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    public_bin_dir = tmp_path / "public-bin"
+
+    result = _run_install_script(
+        tmp_path,
+        {
+            "HOME": str(home_dir),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "FAKE_PYTHON_VERSION": "3.11.9",
+            "FAKE_PYTHON_PEP668_ON_INSTALL": "1",
+            "RIPPLE_PUBLIC_BIN_DIR": str(public_bin_dir),
+            "RIPPLE_REPO_URL": str(ROOT),
+        },
+    )
+
+    internal_cli_path = home_dir / ".ripple" / "bin" / "ripple-cli"
+    public_cli_path = public_bin_dir / "ripple-cli"
+    private_venv_python = home_dir / ".ripple" / "venv" / "bin" / "python"
+    combined_output = result.stdout + result.stderr
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert private_venv_python.is_file()
+    assert internal_cli_path.is_file()
+    assert public_cli_path.exists()
+    assert "虚拟环境" in combined_output
+    assert str(private_venv_python) in combined_output
+    assert "-m pip install -e ." in system_python_log.read_text(encoding="utf-8")
+    assert "-m venv" in system_python_log.read_text(encoding="utf-8")
+    assert "-m pip install -e ." in private_venv_python_log.read_text(encoding="utf-8")
+
+
+def test_install_script_writes_shell_path_snippet_for_user_bin_when_needed(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "fake-bin"
+    fake_python_log = tmp_path / "python.log"
+    _write_fake_python(fake_bin / "python3", fake_python_log)
+
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    public_bin_dir = home_dir / ".local" / "bin"
+
+    result = _run_install_script(
+        tmp_path,
+        {
+            "HOME": str(home_dir),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "FAKE_PYTHON_VERSION": "3.11.9",
+            "RIPPLE_PUBLIC_BIN_DIR": str(public_bin_dir),
+            "RIPPLE_REPO_URL": str(ROOT),
+        },
+    )
+
+    profile_path = home_dir / ".profile"
+    bashrc_path = home_dir / ".bashrc"
+    zshrc_path = home_dir / ".zshrc"
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (public_bin_dir / "ripple-cli").exists()
+    assert profile_path.is_file()
+    assert bashrc_path.is_file()
+    assert zshrc_path.is_file()
+    assert str(public_bin_dir) in profile_path.read_text(encoding="utf-8")
+    assert str(public_bin_dir) in bashrc_path.read_text(encoding="utf-8")
+    assert str(public_bin_dir) in zshrc_path.read_text(encoding="utf-8")
 
 
 def test_install_script_rejects_python_below_311(tmp_path: Path) -> None:
@@ -183,7 +304,6 @@ def test_install_script_rejects_python_below_311(tmp_path: Path) -> None:
         {
             "HOME": str(home_dir),
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
-            "FAKE_PYTHON_LOG": str(fake_python_log),
             "FAKE_PYTHON_VERSION": "3.10.14",
             "RIPPLE_REPO_URL": str(ROOT),
         },
@@ -201,11 +321,13 @@ def test_install_script_can_run_again_after_user_edits_config(tmp_path: Path) ->
 
     home_dir = tmp_path / "home"
     home_dir.mkdir()
+    public_bin_dir = tmp_path / "public-bin"
 
     env = {
         "HOME": str(home_dir),
         "PATH": f"{fake_bin}:{os.environ['PATH']}",
         "FAKE_PYTHON_VERSION": "3.11.9",
+        "RIPPLE_PUBLIC_BIN_DIR": str(public_bin_dir),
         "RIPPLE_REPO_URL": str(ROOT),
     }
 
@@ -238,6 +360,7 @@ def test_install_script_skips_openclaw_skill_when_gateway_mode_is_remote(tmp_pat
     home_dir = tmp_path / "home"
     home_dir.mkdir()
     skills_dir = home_dir / ".openclaw" / "skills"
+    public_bin_dir = tmp_path / "public-bin"
 
     result = _run_install_script(
         tmp_path,
@@ -246,6 +369,7 @@ def test_install_script_skips_openclaw_skill_when_gateway_mode_is_remote(tmp_pat
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
             "FAKE_PYTHON_VERSION": "3.11.9",
             "FAKE_OPENCLAW_GATEWAY_MODE": "remote",
+            "RIPPLE_PUBLIC_BIN_DIR": str(public_bin_dir),
             "RIPPLE_REPO_URL": str(ROOT),
         },
     )
@@ -271,6 +395,7 @@ def test_install_script_skips_openclaw_skill_when_gateway_is_not_running(tmp_pat
     home_dir = tmp_path / "home"
     home_dir.mkdir()
     skills_dir = home_dir / ".openclaw" / "skills"
+    public_bin_dir = tmp_path / "public-bin"
 
     result = _run_install_script(
         tmp_path,
@@ -280,6 +405,7 @@ def test_install_script_skips_openclaw_skill_when_gateway_is_not_running(tmp_pat
             "FAKE_PYTHON_VERSION": "3.11.9",
             "FAKE_OPENCLAW_GATEWAY_MODE": "local",
             "FAKE_OPENCLAW_GATEWAY_STATUS_EXIT_CODE": "1",
+            "RIPPLE_PUBLIC_BIN_DIR": str(public_bin_dir),
             "RIPPLE_REPO_URL": str(ROOT),
         },
     )
@@ -306,6 +432,7 @@ def test_install_script_installs_openclaw_skill_when_local_gateway_is_running(tm
     home_dir.mkdir()
     skills_dir = home_dir / ".openclaw" / "skills"
     target_dir = skills_dir / "ripple-orchestrator"
+    public_bin_dir = tmp_path / "public-bin"
 
     result = _run_install_script(
         tmp_path,
@@ -316,6 +443,7 @@ def test_install_script_installs_openclaw_skill_when_local_gateway_is_running(tm
             "FAKE_OPENCLAW_GATEWAY_MODE": "local",
             "FAKE_OPENCLAW_CONFIG_PATH": str(home_dir / ".openclaw" / "openclaw.json"),
             "OPENCLAW_SKILLS_DIR": str(skills_dir),
+            "RIPPLE_PUBLIC_BIN_DIR": str(public_bin_dir),
             "RIPPLE_OPENCLAW_INSTALLER_PATH": str(
                 ROOT / "integrations" / "openclaw" / "install_local_skill.sh"
             ),

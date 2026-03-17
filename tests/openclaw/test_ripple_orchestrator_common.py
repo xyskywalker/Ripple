@@ -109,3 +109,45 @@ RIPPLE_CLI_BIN="{failing_cli}" run_ripple_cli version || echo rescued
     result = _run_probe(probe)
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "rescued"
+
+
+def test_run_ripple_cli_falls_back_to_private_ripple_wrapper_under_home(tmp_path):
+    repo_root = Path(__file__).resolve().parents[2]
+    common_sh = (
+        repo_root
+        / "integrations"
+        / "openclaw"
+        / "ripple-orchestrator"
+        / "scripts"
+        / "_common.sh"
+    )
+    assert common_sh.exists()
+
+    home_dir = tmp_path / "home"
+    wrapper = home_dir / ".ripple" / "bin" / "ripple-cli"
+    wrapper.parent.mkdir(parents=True, exist_ok=True)
+    wrapper.write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env python3",
+                "import json",
+                "import os",
+                "import sys",
+                'print(json.dumps({"argv": sys.argv[1:], "cwd": os.getcwd()}))',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    wrapper.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+
+    probe = f"""
+set -euo pipefail
+export HOME="{home_dir}"
+source "{common_sh}"
+run_ripple_cli version
+"""
+    result = _run_probe(probe)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout.strip())
+    assert payload["argv"] == ["version", "--json"]

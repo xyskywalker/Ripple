@@ -6,10 +6,17 @@ RIPPLE_SRC_DIR="${RIPPLE_SRC_DIR:-$RIPPLE_HOME_DIR/src}"
 RIPPLE_REPO_DIR="${RIPPLE_REPO_DIR:-$RIPPLE_SRC_DIR/Ripple}"
 RIPPLE_REPO_URL="${RIPPLE_REPO_URL:-https://github.com/xyskywalker/Ripple.git}"
 RIPPLE_REF="${RIPPLE_REF:-}"
+RIPPLE_VENV_DIR="${RIPPLE_VENV_DIR:-$RIPPLE_HOME_DIR/venv}"
+RIPPLE_BIN_DIR="${RIPPLE_BIN_DIR:-$RIPPLE_HOME_DIR/bin}"
+RIPPLE_CLI_WRAPPER_PATH="${RIPPLE_CLI_WRAPPER_PATH:-$RIPPLE_BIN_DIR/ripple-cli}"
+RIPPLE_PUBLIC_BIN_DIR="${RIPPLE_PUBLIC_BIN_DIR:-}"
 RIPPLE_CONFIG_PATH="${RIPPLE_REPO_DIR}/llm_config.yaml"
 OPENCLAW_SKILL_NAME="ripple-orchestrator"
 OPENCLAW_STATUS_MESSAGE=""
+RIPPLE_PATH_STATUS_MESSAGE=""
+RIPPLE_PUBLIC_CLI_PATH=""
 PRESERVED_CONFIG_BACKUP=""
+INSTALL_PYTHON_BIN=""
 
 say() {
   printf '%s\n' "$*"
@@ -30,6 +37,18 @@ trim_value() {
     value="${value:1:${#value}-2}"
   fi
   printf '%s' "${value}"
+}
+
+path_contains_dir() {
+  local dir_path="$1"
+  case ":${PATH}:" in
+    *":${dir_path}:"*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 require_command() {
@@ -126,6 +145,19 @@ cleanup() {
   restore_user_config
 }
 
+cleanup_temp_file() {
+  local file_path="${1:-}"
+  if [ -n "${file_path}" ] && [ -f "${file_path}" ]; then
+    rm -f "${file_path}"
+  fi
+}
+
+ensure_dir_is_writable() {
+  local dir_path="$1"
+  mkdir -p "${dir_path}" 2>/dev/null || true
+  [ -d "${dir_path}" ] && [ -w "${dir_path}" ]
+}
+
 clone_or_update_repo() {
   mkdir -p "${RIPPLE_SRC_DIR}"
 
@@ -166,6 +198,187 @@ bootstrap_config() {
   if [ ! -f "${RIPPLE_CONFIG_PATH}" ] && [ -f "${example_path}" ]; then
     cp "${example_path}" "${RIPPLE_CONFIG_PATH}"
   fi
+}
+
+is_externally_managed_error() {
+  local stderr_file="$1"
+  if [ ! -f "${stderr_file}" ]; then
+    return 1
+  fi
+
+  grep -qi "externally-managed-environment" "${stderr_file}" \
+    || grep -qi "This environment is externally managed" "${stderr_file}"
+}
+
+run_pip_install() {
+  local python_bin="$1"
+  local stdout_file="$2"
+  local stderr_file="$3"
+
+  (
+    cd "${RIPPLE_REPO_DIR}"
+    "${python_bin}" -m pip install -e .
+  ) >"${stdout_file}" 2>"${stderr_file}"
+}
+
+print_captured_output() {
+  local stdout_file="$1"
+  local stderr_file="$2"
+
+  if [ -f "${stdout_file}" ]; then
+    cat "${stdout_file}"
+  fi
+  if [ -f "${stderr_file}" ]; then
+    cat "${stderr_file}" >&2
+  fi
+}
+
+ensure_private_venv() {
+  local base_python="$1"
+  local venv_python="${RIPPLE_VENV_DIR}/bin/python"
+
+  if [ -x "${venv_python}" ]; then
+    printf '%s\n' "${venv_python}"
+    return 0
+  fi
+
+  printf '%s\n' "==> 检测到系统 Python 受保护，正在创建 Ripple 私有虚拟环境：${RIPPLE_VENV_DIR}" >&2
+  if ! "${base_python}" -m venv "${RIPPLE_VENV_DIR}"; then
+    fail "无法创建 Ripple 私有虚拟环境。请先安装 python3-venv（Debian/Ubuntu 可执行：apt install python3-venv），或通过 RIPPLE_PYTHON_BIN 指向现有 Python 3.11+ 虚拟环境。"
+  fi
+
+  [ -x "${venv_python}" ] \
+    || fail "虚拟环境已创建，但未找到 Python：${venv_python}"
+
+  "${venv_python}" -m pip --version >/dev/null 2>&1 \
+    || fail "虚拟环境缺少 pip：${venv_python}。请先安装 python3-venv / ensurepip 后重试。"
+
+  printf '%s\n' "${venv_python}"
+}
+
+install_ripple_package() {
+  local primary_python="$1"
+  local stdout_file=""
+  local stderr_file=""
+  local fallback_python=""
+
+  stdout_file="$(mktemp "${TMPDIR:-/tmp}/ripple-install.stdout.XXXXXX")"
+  stderr_file="$(mktemp "${TMPDIR:-/tmp}/ripple-install.stderr.XXXXXX")"
+
+  if run_pip_install "${primary_python}" "${stdout_file}" "${stderr_file}"; then
+    print_captured_output "${stdout_file}" "${stderr_file}"
+    INSTALL_PYTHON_BIN="${primary_python}"
+    cleanup_temp_file "${stdout_file}"
+    cleanup_temp_file "${stderr_file}"
+    return 0
+  fi
+
+  if ! is_externally_managed_error "${stderr_file}"; then
+    print_captured_output "${stdout_file}" "${stderr_file}"
+    cleanup_temp_file "${stdout_file}"
+    cleanup_temp_file "${stderr_file}"
+    fail "Ripple 安装失败。"
+  fi
+
+  cleanup_temp_file "${stdout_file}"
+  cleanup_temp_file "${stderr_file}"
+
+  fallback_python="$(ensure_private_venv "${primary_python}")"
+  ensure_python_requirements "${fallback_python}"
+
+  stdout_file="$(mktemp "${TMPDIR:-/tmp}/ripple-install.stdout.XXXXXX")"
+  stderr_file="$(mktemp "${TMPDIR:-/tmp}/ripple-install.stderr.XXXXXX")"
+  if run_pip_install "${fallback_python}" "${stdout_file}" "${stderr_file}"; then
+    print_captured_output "${stdout_file}" "${stderr_file}"
+    INSTALL_PYTHON_BIN="${fallback_python}"
+    cleanup_temp_file "${stdout_file}"
+    cleanup_temp_file "${stderr_file}"
+    return 0
+  fi
+
+  print_captured_output "${stdout_file}" "${stderr_file}"
+  cleanup_temp_file "${stdout_file}"
+  cleanup_temp_file "${stderr_file}"
+  fail "Ripple 在私有虚拟环境中的安装仍然失败。"
+}
+
+install_cli_wrapper() {
+  local python_bin="$1"
+
+  mkdir -p "${RIPPLE_BIN_DIR}"
+  cat > "${RIPPLE_CLI_WRAPPER_PATH}" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+exec "${python_bin}" -m ripple.cli.app "\$@"
+EOF
+  chmod +x "${RIPPLE_CLI_WRAPPER_PATH}"
+}
+
+choose_public_cli_bin_dir() {
+  local candidate=""
+
+  if [ -n "${RIPPLE_PUBLIC_BIN_DIR}" ]; then
+    printf '%s\n' "${RIPPLE_PUBLIC_BIN_DIR}"
+    return 0
+  fi
+
+  for candidate in /usr/local/bin /opt/homebrew/bin "${HOME}/.local/bin" "${HOME}/bin"; do
+    if ensure_dir_is_writable "${candidate}"; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+ensure_path_in_shell_startup() {
+  local bin_dir="$1"
+  local rc_file=""
+  local marker_start="# >>> ripple-cli >>>"
+  local marker_end="# <<< ripple-cli <<<"
+
+  for rc_file in "${HOME}/.profile" "${HOME}/.bashrc" "${HOME}/.zshrc" "${HOME}/.zprofile"; do
+    touch "${rc_file}"
+    if grep -Fq "${marker_start}" "${rc_file}"; then
+      continue
+    fi
+    printf '\n%s\nexport PATH="%s:$PATH"\n%s\n' "${marker_start}" "${bin_dir}" "${marker_end}" >> "${rc_file}"
+  done
+}
+
+install_public_cli_command() {
+  local public_bin_dir=""
+  local public_cli_path=""
+
+  public_bin_dir="$(choose_public_cli_bin_dir || true)"
+  if [ -z "${public_bin_dir}" ]; then
+    RIPPLE_PUBLIC_CLI_PATH="${RIPPLE_CLI_WRAPPER_PATH}"
+    RIPPLE_PATH_STATUS_MESSAGE="未找到合适的公共 bin 目录；当前仍可通过内部包装器使用 Ripple CLI。"
+    return 0
+  fi
+
+  mkdir -p "${public_bin_dir}"
+  public_cli_path="${public_bin_dir}/ripple-cli"
+  rm -f "${public_cli_path}"
+  if ! ln -s "${RIPPLE_CLI_WRAPPER_PATH}" "${public_cli_path}" 2>/dev/null; then
+    cat > "${public_cli_path}" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+exec "${RIPPLE_CLI_WRAPPER_PATH}" "\$@"
+EOF
+    chmod +x "${public_cli_path}"
+  fi
+
+  RIPPLE_PUBLIC_CLI_PATH="${public_cli_path}"
+
+  if path_contains_dir "${public_bin_dir}"; then
+    RIPPLE_PATH_STATUS_MESSAGE="已安装全局命令：${RIPPLE_PUBLIC_CLI_PATH}"
+    return 0
+  fi
+
+  ensure_path_in_shell_startup "${public_bin_dir}"
+  RIPPLE_PATH_STATUS_MESSAGE="已安装全局命令：${RIPPLE_PUBLIC_CLI_PATH}。如当前 shell 还未刷新，请重新打开终端后再直接运行 ripple-cli。"
 }
 
 set_openclaw_status() {
@@ -258,14 +471,20 @@ print_success_message() {
   say "  ${RIPPLE_REPO_DIR}"
   say
   say "Python 环境："
-  say "  ${PYTHON_BIN}"
+  say "  ${INSTALL_PYTHON_BIN}"
+  say
+  say "CLI 入口："
+  say "  ${RIPPLE_PUBLIC_CLI_PATH}"
   say
   say "OpenClaw："
   say "  ${OPENCLAW_STATUS_MESSAGE}"
   say
+  say "PATH："
+  say "  ${RIPPLE_PATH_STATUS_MESSAGE}"
+  say
   say "下一步建议："
   say "  1. 交互式配置大模型"
-  say "     cd \"${RIPPLE_REPO_DIR}\" && ripple-cli llm setup"
+  say "     ripple-cli llm setup"
   say
   say "  2. 或直接编辑配置文件"
   say "     ${RIPPLE_CONFIG_PATH}"
@@ -282,10 +501,9 @@ ensure_python_requirements "${PYTHON_BIN}"
 clone_or_update_repo
 
 say "==> Installing Ripple with ${PYTHON_BIN}"
-(
-  cd "${RIPPLE_REPO_DIR}"
-  "${PYTHON_BIN}" -m pip install -e .
-)
+install_ripple_package "${PYTHON_BIN}"
+install_cli_wrapper "${INSTALL_PYTHON_BIN}"
+install_public_cli_command
 
 bootstrap_config
 restore_user_config
