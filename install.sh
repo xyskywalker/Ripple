@@ -10,6 +10,7 @@ RIPPLE_VENV_DIR="${RIPPLE_VENV_DIR:-$RIPPLE_HOME_DIR/venv}"
 RIPPLE_BIN_DIR="${RIPPLE_BIN_DIR:-$RIPPLE_HOME_DIR/bin}"
 RIPPLE_CLI_WRAPPER_PATH="${RIPPLE_CLI_WRAPPER_PATH:-$RIPPLE_BIN_DIR/ripple-cli}"
 RIPPLE_PUBLIC_BIN_DIR="${RIPPLE_PUBLIC_BIN_DIR:-}"
+RIPPLE_BREAK_SYSTEM_PACKAGES="${RIPPLE_BREAK_SYSTEM_PACKAGES:-auto}"
 RIPPLE_CONFIG_PATH="${RIPPLE_REPO_DIR}/llm_config.yaml"
 OPENCLAW_SKILL_NAME="ripple-orchestrator"
 OPENCLAW_STATUS_MESSAGE=""
@@ -214,10 +215,17 @@ run_pip_install() {
   local python_bin="$1"
   local stdout_file="$2"
   local stderr_file="$3"
+  local use_break_system_packages="${4:-0}"
+  local -a pip_args=()
+
+  if [ "${use_break_system_packages}" = "1" ]; then
+    pip_args+=(--break-system-packages)
+  fi
+  pip_args+=(-e .)
 
   (
     cd "${RIPPLE_REPO_DIR}"
-    "${python_bin}" -m pip install -e .
+    "${python_bin}" -m pip install "${pip_args[@]}"
   ) >"${stdout_file}" 2>"${stderr_file}"
 }
 
@@ -261,11 +269,17 @@ install_ripple_package() {
   local stdout_file=""
   local stderr_file=""
   local fallback_python=""
+  local initial_break_system_packages="0"
+  local retry_break_system_packages="0"
+
+  if [ "${RIPPLE_BREAK_SYSTEM_PACKAGES}" = "1" ]; then
+    initial_break_system_packages="1"
+  fi
 
   stdout_file="$(mktemp "${TMPDIR:-/tmp}/ripple-install.stdout.XXXXXX")"
   stderr_file="$(mktemp "${TMPDIR:-/tmp}/ripple-install.stderr.XXXXXX")"
 
-  if run_pip_install "${primary_python}" "${stdout_file}" "${stderr_file}"; then
+  if run_pip_install "${primary_python}" "${stdout_file}" "${stderr_file}" "${initial_break_system_packages}"; then
     print_captured_output "${stdout_file}" "${stderr_file}"
     INSTALL_PYTHON_BIN="${primary_python}"
     cleanup_temp_file "${stdout_file}"
@@ -278,6 +292,29 @@ install_ripple_package() {
     cleanup_temp_file "${stdout_file}"
     cleanup_temp_file "${stderr_file}"
     fail "Ripple 安装失败。"
+  fi
+
+  if [ "${initial_break_system_packages}" = "0" ] && [ "${RIPPLE_BREAK_SYSTEM_PACKAGES}" != "0" ]; then
+    cleanup_temp_file "${stdout_file}"
+    cleanup_temp_file "${stderr_file}"
+    stdout_file="$(mktemp "${TMPDIR:-/tmp}/ripple-install.stdout.XXXXXX")"
+    stderr_file="$(mktemp "${TMPDIR:-/tmp}/ripple-install.stderr.XXXXXX")"
+    retry_break_system_packages="1"
+    printf '%s\n' "==> 检测到 PEP 668，正在使用 --break-system-packages 重试系统 Python 安装" >&2
+    if run_pip_install "${primary_python}" "${stdout_file}" "${stderr_file}" "${retry_break_system_packages}"; then
+      print_captured_output "${stdout_file}" "${stderr_file}"
+      INSTALL_PYTHON_BIN="${primary_python}"
+      cleanup_temp_file "${stdout_file}"
+      cleanup_temp_file "${stderr_file}"
+      return 0
+    fi
+
+    if ! is_externally_managed_error "${stderr_file}"; then
+      print_captured_output "${stdout_file}" "${stderr_file}"
+      cleanup_temp_file "${stdout_file}"
+      cleanup_temp_file "${stderr_file}"
+      fail "Ripple 在系统 Python 中使用 --break-system-packages 安装仍然失败。"
+    fi
   fi
 
   cleanup_temp_file "${stdout_file}"

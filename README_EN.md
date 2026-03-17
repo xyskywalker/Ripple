@@ -377,7 +377,7 @@ Works on macOS / Linux / Windows (WSL). The script will:
 
 - check for `git`, `Python 3.11+`, and `pip`
 - install the source tree into `~/.ripple/src/Ripple`
-- prefer the currently activated Python virtual environment; if PEP 668 blocks system install, automatically fall back to `~/.ripple/venv`
+- prefer the currently activated Python virtual environment; if PEP 668 blocks system install, automatically retry with `--break-system-packages`, then fall back to `~/.ripple/venv` if still needed
 - install a global `ripple-cli` command automatically
 - prepare `llm_config.yaml` when needed
 

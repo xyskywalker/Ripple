@@ -377,7 +377,7 @@ curl -sS -X POST "$BASE_URL/v1/simulations/<JOB_ID>/report" \
 
 - 检测 `git`、`Python 3.11+` 和 `pip`
 - 将源码安装到 `~/.ripple/src/Ripple`
-- 优先使用当前已激活的 Python 虚拟环境；若命中 PEP 668，则自动回退到 `~/.ripple/venv`
+- 优先使用当前已激活的 Python 虚拟环境；若命中 PEP 668，则自动重试 `--break-system-packages`，必要时再回退到 `~/.ripple/venv`
 - 自动安装全局 `ripple-cli` 命令
 - 在需要时准备 `llm_config.yaml`
 

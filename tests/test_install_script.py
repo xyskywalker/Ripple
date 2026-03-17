@@ -55,7 +55,14 @@ EOF
 fi
 
 if [ "${1:-}" = "-m" ] && [ "${2:-}" = "pip" ] && [ "${3:-}" = "install" ]; then
-  if [ "${kind}" = "system" ] && [ "${FAKE_PYTHON_PEP668_ON_INSTALL:-0}" = "1" ]; then
+  has_break_system_packages=0
+  for arg in "$@"; do
+    if [ "$arg" = "--break-system-packages" ]; then
+      has_break_system_packages=1
+      break
+    fi
+  done
+  if [ "${kind}" = "system" ] && [ "${FAKE_PYTHON_PEP668_ON_INSTALL:-0}" = "1" ] && { [ "$has_break_system_packages" != "1" ] || [ "${FAKE_PYTHON_PEP668_FAILS_EVEN_WITH_BREAK:-0}" = "1" ]; }; then
     cat >&2 <<'EOF'
 error: externally-managed-environment
 
@@ -215,7 +222,7 @@ def test_install_script_prefers_active_virtualenv_python(tmp_path: Path) -> None
     assert "-m pip install -e ." not in system_python_log.read_text(encoding="utf-8")
 
 
-def test_install_script_falls_back_to_private_venv_on_pep668(tmp_path: Path) -> None:
+def test_install_script_automatically_breaks_system_packages_on_pep668(tmp_path: Path) -> None:
     fake_bin = tmp_path / "fake-bin"
     system_python_log = tmp_path / "system-python.log"
     private_venv_python_log = tmp_path / "private-venv-python.log"
@@ -245,15 +252,85 @@ def test_install_script_falls_back_to_private_venv_on_pep668(tmp_path: Path) -> 
     public_cli_path = public_bin_dir / "ripple-cli"
     private_venv_python = home_dir / ".ripple" / "venv" / "bin" / "python"
     combined_output = result.stdout + result.stderr
+    system_log = system_python_log.read_text(encoding="utf-8")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert internal_cli_path.is_file()
+    assert public_cli_path.exists()
+    assert not private_venv_python.exists()
+    assert "虚拟环境" not in combined_output
+    assert "-m pip install -e ." in system_log
+    assert "--break-system-packages -e ." in system_log
+    assert "-m venv" not in system_log
+    assert not private_venv_python_log.read_text(encoding="utf-8").strip()
+
+
+def test_install_script_can_break_system_packages_when_explicitly_enabled(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "fake-bin"
+    system_python_log = tmp_path / "system-python.log"
+    _write_fake_python(fake_bin / "python3", system_python_log)
+
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    public_bin_dir = tmp_path / "public-bin"
+
+    result = _run_install_script(
+        tmp_path,
+        {
+            "HOME": str(home_dir),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "FAKE_PYTHON_VERSION": "3.11.9",
+            "FAKE_PYTHON_PEP668_ON_INSTALL": "1",
+            "RIPPLE_PUBLIC_BIN_DIR": str(public_bin_dir),
+            "RIPPLE_BREAK_SYSTEM_PACKAGES": "1",
+            "RIPPLE_REPO_URL": str(ROOT),
+        },
+    )
+
+    system_log = system_python_log.read_text(encoding="utf-8")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "--break-system-packages -e ." in system_log
+    assert "-m venv" not in system_log
+    assert not (home_dir / ".ripple" / "venv" / "bin" / "python").exists()
+
+
+def test_install_script_falls_back_to_private_venv_if_break_system_packages_still_fails(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "fake-bin"
+    system_python_log = tmp_path / "system-python.log"
+    private_venv_python_log = tmp_path / "private-venv-python.log"
+    _write_fake_python(
+        fake_bin / "python3",
+        system_python_log,
+        venv_log_path=private_venv_python_log,
+    )
+
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    public_bin_dir = tmp_path / "public-bin"
+
+    result = _run_install_script(
+        tmp_path,
+        {
+            "HOME": str(home_dir),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "FAKE_PYTHON_VERSION": "3.11.9",
+            "FAKE_PYTHON_PEP668_ON_INSTALL": "1",
+            "FAKE_PYTHON_PEP668_FAILS_EVEN_WITH_BREAK": "1",
+            "RIPPLE_PUBLIC_BIN_DIR": str(public_bin_dir),
+            "RIPPLE_REPO_URL": str(ROOT),
+        },
+    )
+
+    private_venv_python = home_dir / ".ripple" / "venv" / "bin" / "python"
+    combined_output = result.stdout + result.stderr
+    system_log = system_python_log.read_text(encoding="utf-8")
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert private_venv_python.is_file()
-    assert internal_cli_path.is_file()
-    assert public_cli_path.exists()
     assert "虚拟环境" in combined_output
-    assert str(private_venv_python) in combined_output
-    assert "-m pip install -e ." in system_python_log.read_text(encoding="utf-8")
-    assert "-m venv" in system_python_log.read_text(encoding="utf-8")
+    assert "--break-system-packages -e ." in system_log
+    assert "-m venv" in system_log
     assert "-m pip install -e ." in private_venv_python_log.read_text(encoding="utf-8")
 
 
