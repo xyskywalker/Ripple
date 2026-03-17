@@ -346,6 +346,8 @@ install_cli_wrapper() {
   cat > "${RIPPLE_CLI_WRAPPER_PATH}" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
+export RIPPLE_HOME_DIR="\${RIPPLE_HOME_DIR:-${RIPPLE_HOME_DIR}}"
+export RIPPLE_LLM_CONFIG_PATH="\${RIPPLE_LLM_CONFIG_PATH:-${RIPPLE_CONFIG_PATH}}"
 exec "${python_bin}" -m ripple.cli.app "\$@"
 EOF
   chmod +x "${RIPPLE_CLI_WRAPPER_PATH}"

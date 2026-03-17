@@ -73,6 +73,19 @@ EOF
   exit 0
 fi
 
+if [ "${1:-}" = "-m" ] && [ "${2:-}" = "ripple.cli.app" ]; then
+  cli_env_log="${FAKE_RIPPLE_CLI_ENV_LOG:-}"
+  if [ -n "$cli_env_log" ]; then
+    {
+      printf 'cwd=%s\n' "$PWD"
+      printf 'RIPPLE_HOME_DIR=%s\n' "${RIPPLE_HOME_DIR:-}"
+      printf 'RIPPLE_LLM_CONFIG_PATH=%s\n' "${RIPPLE_LLM_CONFIG_PATH:-}"
+      printf 'args=%s\n' "$*"
+    } >> "$cli_env_log"
+  fi
+  exit 0
+fi
+
 printf 'unexpected fake python args: %s\\n' "$*" >&2
 exit 1
 """
@@ -366,6 +379,58 @@ def test_install_script_writes_shell_path_snippet_for_user_bin_when_needed(tmp_p
     assert str(public_bin_dir) in profile_path.read_text(encoding="utf-8")
     assert str(public_bin_dir) in bashrc_path.read_text(encoding="utf-8")
     assert str(public_bin_dir) in zshrc_path.read_text(encoding="utf-8")
+
+
+def test_installed_ripple_cli_uses_installed_llm_config_outside_current_directory(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "fake-bin"
+    fake_python_log = tmp_path / "python.log"
+    cli_env_log = tmp_path / "cli-env.log"
+    _write_fake_python(fake_bin / "python3", fake_python_log)
+
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    public_bin_dir = tmp_path / "public-bin"
+
+    install_result = _run_install_script(
+        tmp_path,
+        {
+            "HOME": str(home_dir),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "FAKE_PYTHON_VERSION": "3.11.9",
+            "RIPPLE_PUBLIC_BIN_DIR": str(public_bin_dir),
+            "RIPPLE_REPO_URL": str(ROOT),
+        },
+    )
+
+    public_cli_path = public_bin_dir / "ripple-cli"
+    other_dir = tmp_path / "elsewhere"
+    other_dir.mkdir()
+    run_env = os.environ.copy()
+    run_env.update(
+        {
+            "HOME": str(home_dir),
+            "FAKE_RIPPLE_CLI_ENV_LOG": str(cli_env_log),
+        }
+    )
+
+    run_result = subprocess.run(
+        [str(public_cli_path), "llm", "test"],
+        cwd=other_dir,
+        env=run_env,
+        capture_output=True,
+        text=True,
+    )
+
+    expected_home = home_dir / ".ripple"
+    expected_config_path = expected_home / "src" / "Ripple" / "llm_config.yaml"
+    env_log = cli_env_log.read_text(encoding="utf-8")
+
+    assert install_result.returncode == 0, install_result.stdout + install_result.stderr
+    assert run_result.returncode == 0, run_result.stdout + run_result.stderr
+    assert f"cwd={other_dir}" in env_log
+    assert f"RIPPLE_HOME_DIR={expected_home}" in env_log
+    assert f"RIPPLE_LLM_CONFIG_PATH={expected_config_path}" in env_log
+    assert "args=-m ripple.cli.app llm test" in env_log
 
 
 def test_install_script_rejects_python_below_311(tmp_path: Path) -> None:
