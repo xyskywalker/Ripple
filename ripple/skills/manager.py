@@ -26,13 +26,13 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
 
+from ripple.runtime_paths import default_skill_search_paths
 from ripple.version import VERSION
 
 from ripple.skills.validator import (
@@ -117,15 +117,6 @@ class SkillManager:
     生命周期 / Lifecycle: discover -> select -> load -> freeze
     """
 
-    _DEFAULT_SEARCH_DIRS = (
-        ".agents/skills",
-        "skills",
-    )
-    _HOME_SEARCH_DIRS = (
-        ".config/ripple/skills",
-    )
-    _RIPPLE_INSTALL_SKILLS_SUBDIR = Path("src") / "Ripple" / "skills"
-
     def __init__(self, search_paths: Optional[List[Path]] = None) -> None:
         """初始化 SkillManager。 / Initialize SkillManager.
 
@@ -143,16 +134,7 @@ class SkillManager:
 
     def _build_default_paths(self) -> List[Path]:
         """构建默认搜索路径列表。 / Build default search path list."""
-        paths: List[Path] = []
-        cwd = Path.cwd()
-        for subdir in self._DEFAULT_SEARCH_DIRS:
-            paths.append(cwd / subdir)
-        home = Path.home()
-        for subdir in self._HOME_SEARCH_DIRS:
-            paths.append(home / subdir)
-        ripple_home = Path(os.getenv("RIPPLE_HOME_DIR") or (home / ".ripple")).expanduser()
-        paths.append(ripple_home / self._RIPPLE_INSTALL_SKILLS_SUBDIR)
-        return paths
+        return list(default_skill_search_paths())
 
     def _example_schema_error(self, skill_name: str, example_file: Path, message: str) -> SkillValidationError:
         """构造 example schema 错误。 / Build a structured example schema validation error."""

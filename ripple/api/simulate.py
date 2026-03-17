@@ -19,11 +19,10 @@ from typing import Any, Dict, List, Optional
 from ripple.engine.recorder import SimulationRecorder
 from ripple.engine.runtime import SimulationRuntime, ProgressCallback
 from ripple.llm.router import ModelRouter
+from ripple.runtime_paths import resolve_output_dir
 from ripple.skills.manager import SkillManager
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_OUTPUT_DIR = "ripple_outputs"
 
 # 强制免责声明 / Mandatory disclaimer
 _DISCLAIMER = (
@@ -132,8 +131,8 @@ def _resolve_output_path(
         p.parent.mkdir(parents=True, exist_ok=True)
         return p
 
-    # 默认：当前目录下 ripple_outputs/
-    out_dir = Path(_DEFAULT_OUTPUT_DIR)
+    # 默认：源码开发态写入当前目录；安装态写入 ~/.ripple/data/ripple_outputs/
+    out_dir = Path(resolve_output_dir())
     out_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     return out_dir / f"{ts}_{run_id}.json"
@@ -188,7 +187,8 @@ async def simulate(
         output_path: 模拟结果 JSON 文件输出路径（可选）。
             - 指定文件路径：直接保存到该路径
             - 指定目录路径（以 / 结尾）：在该目录下自动命名
-            - 不指定：在 ./ripple_outputs/ 下自动命名
+            - 不指定：源码开发态在当前目录 `./ripple_outputs/` 下自动命名；
+              安装态回退到 `~/.ripple/data/ripple_outputs/`
         on_progress: 进度回调函数（可选）。支持同步和异步函数。
             模拟过程中每个关键节点会调用此函数传入 SimulationEvent，
             适用于实时 UI 更新、WebSocket 推送、进度条显示等场景。

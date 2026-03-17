@@ -380,6 +380,7 @@ curl -sS -X POST "$BASE_URL/v1/simulations/<JOB_ID>/report" \
 - 优先使用当前已激活的 Python 虚拟环境；若命中 PEP 668，则自动重试 `--break-system-packages`，必要时再回退到 `~/.ripple/venv`
 - 自动安装全局 `ripple-cli` 命令
 - 在需要时准备 `llm_config.yaml`，并让全局 `ripple-cli` 默认固定读取 `~/.ripple/src/Ripple/llm_config.yaml`
+- 将任务数据库与产物目录固定到 `~/.ripple/data/` 下；源码开发态仍默认使用当前目录下的 `./data/` 与 `./ripple_outputs/`
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xyskywalker/Ripple/main/install.sh | bash

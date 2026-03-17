@@ -38,6 +38,16 @@ class TestSkillLoading:
 
         assert custom_ripple_home / "src" / "Ripple" / "skills" in paths
 
+    def test_default_search_paths_respect_ripple_repo_dir_env(self, monkeypatch, tmp_path):
+        """默认搜索路径应尊重 RIPPLE_REPO_DIR。 / Default search paths should respect RIPPLE_REPO_DIR."""
+        custom_repo_dir = tmp_path / "custom-root" / "Ripple"
+        monkeypatch.setenv("RIPPLE_REPO_DIR", str(custom_repo_dir))
+
+        manager = SkillManager()
+        paths = manager._build_default_paths()
+
+        assert custom_repo_dir / "skills" in paths
+
     def test_load_social_media_skill(self):
         """加载 social-media Skill。 / Load social-media skill."""
         if not SKILL_DIR.exists():

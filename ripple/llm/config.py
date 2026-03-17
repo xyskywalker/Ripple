@@ -31,6 +31,8 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
+from ripple.runtime_paths import resolve_llm_config_path
+
 logger = logging.getLogger(__name__)
 
 
@@ -269,14 +271,6 @@ class LLMConfigLoader:
     }
     """
 
-    # 配置文件搜索路径（按优先级） / Config file search paths (by priority)
-    _CONFIG_SEARCH_PATHS = [
-        "llm_config.yaml",
-        "llm_config.yml",
-        "config/llm_config.yaml",
-        "config/llm_config.yml",
-    ]
-
     # 以下划线开头的键是元配置，不是角色名 / Underscore-prefixed keys are meta-config, not roles
     _META_KEYS = {"_default", "_degradation"}
 
@@ -309,13 +303,21 @@ class LLMConfigLoader:
                 logger.warning("指定的 LLM 配置文件不存在: %s", path)
                 return
 
-        # 自动搜索默认路径 / Auto-search default paths
-        for search_path in self._CONFIG_SEARCH_PATHS:
-            path = Path(search_path)
+        env_config_path = os.getenv("RIPPLE_LLM_CONFIG_PATH")
+        if env_config_path:
+            path = Path(env_config_path)
             if path.exists():
                 self._file_config = self._read_yaml(path)
-                logger.info("自动发现 LLM 配置文件: %s", path)
-                return
+                logger.info("从环境变量加载 LLM 配置文件: %s", path)
+            else:
+                logger.warning("环境变量指定的 LLM 配置文件不存在: %s", path)
+            return
+
+        resolved_path = Path(resolve_llm_config_path(None))
+        if resolved_path.exists():
+            self._file_config = self._read_yaml(resolved_path)
+            logger.info("自动发现 LLM 配置文件: %s", resolved_path)
+            return
 
         logger.debug("未发现 LLM 配置文件，将依赖代码配置")
 

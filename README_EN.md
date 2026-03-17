@@ -380,6 +380,7 @@ Works on macOS / Linux / Windows (WSL). The script will:
 - prefer the currently activated Python virtual environment; if PEP 668 blocks system install, automatically retry with `--break-system-packages`, then fall back to `~/.ripple/venv` if still needed
 - install a global `ripple-cli` command automatically
 - prepare `llm_config.yaml` when needed, and make the installed `ripple-cli` use `~/.ripple/src/Ripple/llm_config.yaml` by default from any directory
+- keep the task database and artifact outputs under `~/.ripple/data/`; source/development runs still default to local `./data/` and `./ripple_outputs/`
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xyskywalker/Ripple/main/install.sh | bash

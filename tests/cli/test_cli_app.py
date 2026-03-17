@@ -1709,6 +1709,21 @@ def test_job_list_human_never_calls_localization_llm(
     assert "产物文件" in result.stdout
 
 
+def test_job_list_initializes_schema_for_fresh_db_path(tmp_path: Path) -> None:
+    """job list 在全新数据库路径上也应返回空列表，而不是抛 sqlite schema 错误。 / job list should return an empty page on a fresh db path instead of crashing on missing schema."""
+    from ripple.cli.app import app
+
+    db_path = tmp_path / "fresh.db"
+
+    result = runner.invoke(app, ["job", "list", "--db", str(db_path), "--json"])
+
+    assert result.exit_code == 0
+    payload = _read_json(result)
+    assert payload["jobs"] == []
+    assert payload["total"] == 0
+    assert db_path.exists()
+
+
 def test_job_list_includes_artifact_paths_in_json_and_human_output(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

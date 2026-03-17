@@ -33,6 +33,11 @@ from ripple.llm.config import LLMConfigLoader
 from ripple.llm.router import ConfigurationError, ModelRouter
 from ripple.primitives.events import SimulationEvent
 from ripple.reporting import generate_skill_report_from_result
+from ripple.runtime_paths import (
+    resolve_db_path as resolve_runtime_db_path,
+    resolve_llm_config_path as resolve_runtime_llm_config_path,
+    resolve_output_dir as resolve_runtime_output_dir,
+)
 from ripple.service.job_repo_sqlite import JobRepoSQLite
 from ripple.skills.manager import LoadedSkill, SkillManager
 from ripple.skills.validator import SKILL_NOT_FOUND, SKILL_SCHEMA_INVALID, SkillValidationError
@@ -147,11 +152,11 @@ VerboseOption = Annotated[
 ]
 ConfigOption = Annotated[
     Optional[str],
-    typer.Option("--config", help="指定 `llm_config.yaml` 路径。未传时默认读取当前目录下的 `./llm_config.yaml`。"),
+    typer.Option("--config", help="指定 `llm_config.yaml` 路径。未传时优先读取环境变量 `RIPPLE_LLM_CONFIG_PATH`，否则默认使用当前目录下的 `./llm_config.yaml`。"),
 ]
 DbOption = Annotated[
     Optional[str],
-    typer.Option("--db", help="指定任务 SQLite 数据库路径。未传时默认使用 `./data/ripple.db`。"),
+    typer.Option("--db", help="指定任务 SQLite 数据库路径。未传时优先读取环境变量 `RIPPLE_DB_PATH`，否则默认使用当前目录下的 `./data/ripple.db`。"),
 ]
 InputOption = Annotated[
     Optional[str],
@@ -166,9 +171,6 @@ SourceFilterOption = Annotated[
     typer.Option("--source", help="按任务来源过滤，例如 `cli`。"),
 ]
 
-_DEFAULT_OUTPUT_DIR = "ripple_outputs"
-_DEFAULT_DB_PATH = "./data/ripple.db"
-_DEFAULT_LLM_CONFIG_PATH = "./llm_config.yaml"
 _LLM_PLATFORM_OPTIONS = (
     ("openai", "openai（包括所有openai兼容模型）"),
     ("anthropic", "anthropic（包括所有anthropic兼容模型）"),
@@ -2207,15 +2209,21 @@ def _configure_logging(verbose: int, quiet: bool) -> None:
 
 
 def _resolve_config_path(config_path: str | None) -> str:
-    return str(config_path or os.getenv("RIPPLE_LLM_CONFIG_PATH") or _DEFAULT_LLM_CONFIG_PATH)
+    return resolve_runtime_llm_config_path(config_path)
 
 
 def _resolve_db_path(db_path: str | None) -> str:
-    return str(db_path or os.getenv("RIPPLE_DB_PATH") or _DEFAULT_DB_PATH)
+    return resolve_runtime_db_path(db_path)
 
 
 def _resolve_output_dir() -> str:
-    return str(os.getenv("RIPPLE_OUTPUT_DIR") or _DEFAULT_OUTPUT_DIR)
+    return resolve_runtime_output_dir()
+
+
+def _open_job_repo(db_path: str | None) -> JobRepoSQLite:
+    repo = JobRepoSQLite(_resolve_db_path(db_path))
+    repo.init_schema()
+    return repo
 
 
 def _heartbeat_seconds() -> int:
@@ -3499,8 +3507,7 @@ def doctor(
     try:
         config_file = _resolve_config_path(config_path)
         db_file = _resolve_db_path(db_path)
-        repo = JobRepoSQLite(db_file)
-        repo.init_schema()
+        repo = _open_job_repo(db_file)
         checks = {
             "python": {
                 "ok": sys.version_info >= (3, 11),
@@ -4196,8 +4203,7 @@ def job_run(
     try:
         config_file = _resolve_config_path(config_path)
         db_file = _resolve_db_path(db_path)
-        repo = JobRepoSQLite(db_file)
-        repo.init_schema()
+        repo = _open_job_repo(db_file)
         request = _build_request(
             input_path=input_path,
             skill=skill,
@@ -4303,7 +4309,7 @@ def job_status(
 ) -> None:
     output = OutputHandler(json_mode, quiet)
     try:
-        repo = JobRepoSQLite(_resolve_db_path(db_path))
+        repo = _open_job_repo(db_path)
         row = repo.get_job(job_id)
         payload = _status_payload(row)
         output.success(payload, _render_job_payload(payload, allow_llm=False))
@@ -4337,8 +4343,7 @@ def job_wait(
         _handle_cli_error(output, CLIError("INVALID_INPUT", "`--timeout` 不能小于 0。"))
     if poll_interval <= 0:
         _handle_cli_error(output, CLIError("INVALID_INPUT", "`--poll-interval` 必须大于 0。"))
-    repo = JobRepoSQLite(_resolve_db_path(db_path))
-    repo.init_schema()
+    repo = _open_job_repo(db_path)
     started = time.monotonic()
     last_headline = ""
     while True:
@@ -4380,7 +4385,7 @@ def job_list(
     quiet: QuietOption = False,
 ) -> None:
     output = OutputHandler(json_mode, quiet)
-    repo = JobRepoSQLite(_resolve_db_path(db_path))
+    repo = _open_job_repo(db_path)
     page = repo.list_jobs(status=status, source=source, limit=limit, offset=offset)
     jobs = []
     for row in page["jobs"]:
@@ -4427,7 +4432,7 @@ def job_result(
 ) -> None:
     output = OutputHandler(json_mode, quiet)
     try:
-        repo = JobRepoSQLite(_resolve_db_path(db_path))
+        repo = _open_job_repo(db_path)
         row = repo.get_job(job_id)
         if row.get("status") != "completed":
             raise CLIError("INVALID_INPUT", f"Job {job_id} is not completed.")
@@ -4456,7 +4461,7 @@ def job_log(
 ) -> None:
     output = OutputHandler(json_mode, quiet)
     try:
-        repo = JobRepoSQLite(_resolve_db_path(db_path))
+        repo = _open_job_repo(db_path)
         row = repo.get_job(job_id)
         result = _load_result_json(row)
         log_text = _load_compact_log(result)
@@ -4483,7 +4488,7 @@ def job_cancel(
 ) -> None:
     output = OutputHandler(json_mode, quiet)
     try:
-        repo = JobRepoSQLite(_resolve_db_path(db_path))
+        repo = _open_job_repo(db_path)
         row = repo.get_job(job_id)
         if row.get("status") not in {"running", "cancel_pending", "cancelling"}:
             raise CLIError("INVALID_INPUT", f"Job {job_id} is not cancellable in status={row.get('status')}.")
@@ -4567,7 +4572,7 @@ def job_delete(
 ) -> None:
     output = OutputHandler(json_mode, quiet)
     try:
-        repo = JobRepoSQLite(_resolve_db_path(db_path))
+        repo = _open_job_repo(db_path)
         row = repo.get_job(job_id)
         status = str(row.get("status") or "").strip()
         if status in {"running", "cancel_pending", "cancelling"}:
@@ -4632,7 +4637,7 @@ def job_clean(
     quiet: QuietOption = False,
 ) -> None:
     output = OutputHandler(json_mode, quiet)
-    repo = JobRepoSQLite(_resolve_db_path(db_path))
+    repo = _open_job_repo(db_path)
     before_iso = None
     if before:
         cutoff = datetime.now(timezone.utc) - _parse_duration(before)
@@ -4682,8 +4687,7 @@ def worker(
     job_id: str = typer.Argument(...),
 ) -> None:
     """隐藏 worker 入口。 / Hidden worker entrypoint."""
-    repo = JobRepoSQLite(_resolve_db_path(db_path))
-    repo.init_schema()
+    repo = _open_job_repo(db_path)
     row = repo.get_job(job_id)
     request = _load_request_json(row)
     config_file = _resolve_config_path(config_path)
