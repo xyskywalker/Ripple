@@ -426,7 +426,7 @@ def test_install_script_can_run_again_after_user_edits_config(tmp_path: Path) ->
     assert config_path.read_text(encoding="utf-8").endswith(user_tail)
 
 
-def test_install_script_skips_openclaw_skill_when_gateway_mode_is_remote(tmp_path: Path) -> None:
+def test_install_script_installs_openclaw_skill_even_when_gateway_mode_is_remote(tmp_path: Path) -> None:
     fake_bin = tmp_path / "fake-bin"
     fake_python_log = tmp_path / "python.log"
     openclaw_log = tmp_path / "openclaw.log"
@@ -437,6 +437,7 @@ def test_install_script_skips_openclaw_skill_when_gateway_mode_is_remote(tmp_pat
     home_dir = tmp_path / "home"
     home_dir.mkdir()
     skills_dir = home_dir / ".openclaw" / "skills"
+    target_dir = skills_dir / "ripple-orchestrator"
     public_bin_dir = tmp_path / "public-bin"
 
     result = _run_install_script(
@@ -452,16 +453,16 @@ def test_install_script_skips_openclaw_skill_when_gateway_mode_is_remote(tmp_pat
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert not (skills_dir / "ripple-orchestrator").exists()
+    assert target_dir.is_dir()
     assert "OpenClaw" in result.stdout
-    assert "remote" in result.stdout
+    assert "ripple-orchestrator" in result.stdout
     openclaw_calls = openclaw_log.read_text(encoding="utf-8")
-    assert "config get gateway.mode" in openclaw_calls
-    assert "gateway status" not in openclaw_calls
-    assert not config_set_log.read_text(encoding="utf-8").strip()
+    assert "config validate --json" in openclaw_calls
+    config_updates = config_set_log.read_text(encoding="utf-8")
+    assert 'skills.entries["ripple-orchestrator"].enabled=true' in config_updates
 
 
-def test_install_script_skips_openclaw_skill_when_gateway_is_not_running(tmp_path: Path) -> None:
+def test_install_script_installs_openclaw_skill_even_when_gateway_rpc_probe_fails(tmp_path: Path) -> None:
     fake_bin = tmp_path / "fake-bin"
     fake_python_log = tmp_path / "python.log"
     openclaw_log = tmp_path / "openclaw.log"
@@ -472,6 +473,7 @@ def test_install_script_skips_openclaw_skill_when_gateway_is_not_running(tmp_pat
     home_dir = tmp_path / "home"
     home_dir.mkdir()
     skills_dir = home_dir / ".openclaw" / "skills"
+    target_dir = skills_dir / "ripple-orchestrator"
     public_bin_dir = tmp_path / "public-bin"
 
     result = _run_install_script(
@@ -488,13 +490,13 @@ def test_install_script_skips_openclaw_skill_when_gateway_is_not_running(tmp_pat
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert not (skills_dir / "ripple-orchestrator").exists()
+    assert target_dir.is_dir()
     assert "OpenClaw" in result.stdout
-    assert "Gateway" in result.stdout
+    assert "ripple-orchestrator" in result.stdout
     openclaw_calls = openclaw_log.read_text(encoding="utf-8")
-    assert "config get gateway.mode" in openclaw_calls
-    assert "gateway status --json --require-rpc" in openclaw_calls
-    assert not config_set_log.read_text(encoding="utf-8").strip()
+    assert "config validate --json" in openclaw_calls
+    config_updates = config_set_log.read_text(encoding="utf-8")
+    assert 'skills.entries["ripple-orchestrator"].enabled=true' in config_updates
 
 
 def test_install_script_installs_openclaw_skill_when_local_gateway_is_running(tmp_path: Path) -> None:
@@ -536,8 +538,6 @@ def test_install_script_installs_openclaw_skill_when_local_gateway_is_running(tm
     assert "session" in result.stdout
 
     openclaw_calls = openclaw_log.read_text(encoding="utf-8")
-    assert "config get gateway.mode" in openclaw_calls
-    assert "gateway status --json --require-rpc" in openclaw_calls
     assert "config validate --json" in openclaw_calls
     config_updates = config_set_log.read_text(encoding="utf-8")
     assert 'skills.entries["ripple-orchestrator"].enabled=true' in config_updates

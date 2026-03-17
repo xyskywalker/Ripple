@@ -437,7 +437,6 @@ resolve_openclaw_installer() {
 }
 
 install_openclaw_skill_if_possible() {
-  local gateway_mode=""
   local installer_path=""
   local config_path=""
   local skills_root="${OPENCLAW_SKILLS_DIR:-$HOME/.openclaw/skills}"
@@ -448,33 +447,16 @@ install_openclaw_skill_if_possible() {
     return 0
   fi
 
-  gateway_mode="$(openclaw config get gateway.mode 2>/dev/null || true)"
-  gateway_mode="$(trim_value "${gateway_mode}")"
-  if [ -z "${gateway_mode}" ]; then
-    set_openclaw_status "检测到 OpenClaw CLI，但未读取到 gateway.mode，已跳过 ${OPENCLAW_SKILL_NAME} skill 安装。"
-    return 0
-  fi
-
-  if [ "${gateway_mode}" != "local" ]; then
-    set_openclaw_status "检测到 OpenClaw CLI 当前为 ${gateway_mode} 模式，已跳过本机 ${OPENCLAW_SKILL_NAME} skill 安装。"
-    return 0
-  fi
-
-  if ! openclaw gateway status --json --require-rpc >/dev/null 2>&1; then
-    set_openclaw_status "检测到 OpenClaw CLI，但本机 Gateway 未通过 RPC 健康检查，已跳过 ${OPENCLAW_SKILL_NAME} skill 安装。"
-    return 0
-  fi
-
   installer_path="$(resolve_openclaw_installer)"
   installer_path="$(trim_value "${installer_path}")"
   if [ -z "${installer_path}" ]; then
-    set_openclaw_status "OpenClaw 已运行，但未找到 ${OPENCLAW_SKILL_NAME} 的安装脚本，已跳过 skill 安装。"
+    set_openclaw_status "已检测到 OpenClaw CLI，但未找到 ${OPENCLAW_SKILL_NAME} 的安装脚本，已跳过 skill 安装。"
     return 0
   fi
 
   say "==> Installing OpenClaw skill: ${OPENCLAW_SKILL_NAME}"
   if ! OPENCLAW_SKILLS_DIR="${skills_root}" bash "${installer_path}" >/dev/null; then
-    set_openclaw_status "OpenClaw 已运行，但复制 ${OPENCLAW_SKILL_NAME} 到 ${target_dir} 失败。"
+    set_openclaw_status "已检测到 OpenClaw CLI，但复制 ${OPENCLAW_SKILL_NAME} 到 ${target_dir} 失败。"
     return 0
   fi
 
