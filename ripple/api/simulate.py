@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -19,6 +20,7 @@ from typing import Any, Dict, List, Optional
 from ripple.engine.recorder import SimulationRecorder
 from ripple.engine.runtime import SimulationRuntime, ProgressCallback
 from ripple.llm.router import ModelRouter
+from ripple.primitives.events import SimulationEvent
 from ripple.runtime_paths import resolve_output_dir
 from ripple.skills.manager import SkillManager
 
@@ -110,6 +112,111 @@ def _make_llm_caller(router, role: str):
         return content
 
     return caller
+
+
+def _coerce_optional_int(value: Any) -> Optional[int]:
+    """宽松解析整数；无法解析时返回 None。 / Best-effort int coercion, otherwise None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        try:
+            return int(stripped)
+        except ValueError:
+            return None
+    return None
+
+
+def _coerce_optional_bool(value: Any) -> Optional[bool]:
+    """宽松解析布尔值；无法解析时返回 None。 / Best-effort bool coercion, otherwise None."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes"}:
+            return True
+        if lowered in {"false", "0", "no"}:
+            return False
+    return None
+
+
+def _coerce_count_map(value: Any) -> Dict[str, int]:
+    """过滤出 {str: int} 计数字典。 / Sanitize a {str: int} counter map."""
+    if not isinstance(value, dict):
+        return {}
+    cleaned: Dict[str, int] = {}
+    for key, item in value.items():
+        coerced = _coerce_optional_int(item)
+        if coerced is not None:
+            cleaned[str(key)] = coerced
+    return cleaned
+
+
+def _serialize_llm_budget(budget: Any, *, requested_max_calls: Optional[int] = None) -> Dict[str, Any]:
+    """序列化 LLM 预算状态，兼容真实对象与测试替身。 / Serialize LLM budget state for real objects and mocks."""
+    raw: Dict[str, Any] = {}
+    to_dict = getattr(budget, "to_dict", None)
+    if callable(to_dict):
+        with suppress(Exception):
+            loaded = to_dict()
+            if isinstance(loaded, dict):
+                raw = loaded
+
+    max_calls = _coerce_optional_int(raw.get("max_calls"))
+    if max_calls is None:
+        max_calls = _coerce_optional_int(getattr(budget, "max_calls", None))
+    if max_calls is None:
+        max_calls = requested_max_calls
+
+    total_calls = _coerce_optional_int(raw.get("total_calls"))
+    if total_calls is None:
+        total_calls = _coerce_optional_int(getattr(budget, "total_calls", None))
+    if total_calls is None:
+        total_calls = 0
+
+    total_attempts = _coerce_optional_int(raw.get("total_attempts"))
+    if total_attempts is None:
+        total_attempts = _coerce_optional_int(getattr(budget, "total_attempts", None))
+    if total_attempts is None:
+        total_attempts = total_calls
+
+    unlimited = _coerce_optional_bool(raw.get("unlimited"))
+    if unlimited is None:
+        unlimited = _coerce_optional_bool(getattr(budget, "is_unlimited", None))
+    if unlimited is None:
+        unlimited = bool(max_calls is not None and max_calls <= 0)
+
+    remaining = _coerce_optional_int(raw.get("remaining"))
+    if remaining is None:
+        remaining = _coerce_optional_int(getattr(budget, "remaining", None))
+    if remaining is None and not unlimited and max_calls is not None:
+        remaining = max(0, max_calls - total_calls)
+
+    calls_by_role = _coerce_count_map(raw.get("calls_by_role"))
+    if not calls_by_role:
+        calls_by_role = _coerce_count_map(getattr(budget, "calls_by_role", None))
+
+    attempts_by_role = _coerce_count_map(raw.get("attempts_by_role"))
+    if not attempts_by_role:
+        attempts_by_role = _coerce_count_map(getattr(budget, "attempts_by_role", None))
+
+    payload: Dict[str, Any] = {
+        "max_calls": max_calls,
+        "total_calls": total_calls,
+        "total_attempts": total_attempts,
+        "unlimited": unlimited,
+        "calls_by_role": calls_by_role,
+        "attempts_by_role": attempts_by_role,
+    }
+    if remaining is not None:
+        payload["remaining"] = remaining
+    return payload
 
 
 def _resolve_output_path(
@@ -221,6 +328,17 @@ async def simulate(
         max_llm_calls=max_llm_calls,
         config_file=config_file,
     )
+
+    def _forward_progress_with_budget(event: SimulationEvent):
+        if on_progress is None:
+            return None
+        detail = dict(event.detail or {})
+        detail["llm_budget"] = _serialize_llm_budget(
+            router.budget,
+            requested_max_calls=max_llm_calls,
+        )
+        event.detail = detail
+        return on_progress(event)
 
     # 5. 创建 LLM callers（Star 和 Sea 分离，实现模型成本分层）
     omniscient_caller = _make_llm_caller(router, "omniscient")
@@ -400,7 +518,7 @@ async def simulate(
                 sea_caller=sea_caller,
                 skill_profile=skill_profile,
                 skill_prompts=loaded_skill.prompts,
-                on_progress=on_progress,
+                on_progress=_forward_progress_with_budget,
                 recorder=recorder,
                 extra_phases=extra_phases,
                 simulation_input=simulation_input,
@@ -414,7 +532,7 @@ async def simulate(
                 sea_caller=sea_caller,
                 skill_profile=skill_profile,
                 skill_prompts=loaded_skill.prompts,
-                on_progress=on_progress,
+                on_progress=_forward_progress_with_budget,
                 recorder=recorder,
                 extra_phases=extra_phases,
                 simulation_input=simulation_input,
@@ -434,6 +552,10 @@ async def simulate(
 
     result["output_file"] = str(file_path.resolve())
     result["compact_log_file"] = str(recorder.compact_log_path.resolve())
+    result["llm_budget"] = _serialize_llm_budget(
+        router.budget,
+        requested_max_calls=max_llm_calls,
+    )
 
     # 11. 强制免责声明注入 / Mandatory disclaimer injection
     result["disclaimer"] = _DISCLAIMER

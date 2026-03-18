@@ -344,6 +344,8 @@ class ProgressTracker:
     last_cas_signal: str = ""
     last_deliberation: str = ""
     last_prediction_verdict: str = ""
+    llm_budget: dict[str, Any] = field(default_factory=dict)
+    last_snapshot: dict[str, Any] = field(default_factory=dict)
 
     def apply(self, event: SimulationEvent) -> dict[str, Any]:
         self.last_phase = event.phase
@@ -381,11 +383,14 @@ class ProgressTracker:
                 context="simulation_verdict",
                 limit=160,
             )
+        budget = detail.get("llm_budget")
+        if isinstance(budget, dict):
+            self.llm_budget = dict(budget)
         entry = _event_entry(event, config_file=self.config_file)
         if entry is not None:
             self.recent_events.append(entry)
             self.recent_events = self.recent_events[-_MAX_RECENT_EVENTS:]
-        return {
+        snapshot = {
             "headline": _event_headline(event),
             "progress_bar": _progress_bar(event.progress),
             "phase_label": _PHASE_LABELS.get(event.phase, event.phase),
@@ -393,6 +398,10 @@ class ProgressTracker:
             "event_lines": _event_lines(event, config_file=self.config_file),
             "recent_events": list(self.recent_events),
         }
+        if self.llm_budget:
+            snapshot["llm_budget"] = dict(self.llm_budget)
+        self.last_snapshot = snapshot
+        return snapshot
 
 
 def _skill_validation_cli_error(exc: SkillValidationError) -> CLIError:
@@ -848,6 +857,163 @@ def _markdown_table(title: str, headers: list[str], rows: list[list[str]]) -> st
     return "\n".join(lines)
 
 
+def _coerce_display_int(value: Any) -> int | None:
+    """宽松解析展示层整数。 / Best-effort int coercion for display payloads."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        try:
+            return int(stripped)
+        except ValueError:
+            return None
+    return None
+
+
+def _coerce_display_bool(value: Any) -> bool | None:
+    """宽松解析展示层布尔值。 / Best-effort bool coercion for display payloads."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes"}:
+            return True
+        if lowered in {"false", "0", "no"}:
+            return False
+    return None
+
+
+def _coerce_display_counter_map(value: Any) -> dict[str, int]:
+    """过滤出 {str: int} 计数字典。 / Sanitize a {str: int} counter map."""
+    if not isinstance(value, dict):
+        return {}
+    cleaned: dict[str, int] = {}
+    for key, item in value.items():
+        coerced = _coerce_display_int(item)
+        if coerced is not None:
+            cleaned[str(key)] = coerced
+    return cleaned
+
+
+def _load_error_payload(row: dict[str, Any]) -> dict[str, Any]:
+    """读取任务错误 JSON。 / Load the persisted job error payload."""
+    raw = str(row.get("error_json") or "").strip()
+    if not raw:
+        return {}
+    try:
+        loaded = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _normalize_llm_budget(
+    raw_budget: Any,
+    *,
+    requested_max_llm_calls: Any = None,
+) -> dict[str, Any]:
+    """归一化 LLM 预算结构。 / Normalize LLM budget data for CLI/status rendering."""
+    budget = raw_budget if isinstance(raw_budget, dict) else {}
+    max_llm_calls = _coerce_display_int(budget.get("max_llm_calls"))
+    if max_llm_calls is None:
+        max_llm_calls = _coerce_display_int(budget.get("max_calls"))
+    if max_llm_calls is None:
+        max_llm_calls = _coerce_display_int(requested_max_llm_calls)
+
+    used_calls = _coerce_display_int(budget.get("used_calls"))
+    if used_calls is None:
+        used_calls = _coerce_display_int(budget.get("total_calls"))
+    if used_calls is None:
+        used_calls = 0
+
+    attempted_calls = _coerce_display_int(budget.get("attempted_calls"))
+    if attempted_calls is None:
+        attempted_calls = _coerce_display_int(budget.get("total_attempts"))
+    if attempted_calls is None:
+        attempted_calls = used_calls
+
+    unlimited = _coerce_display_bool(budget.get("unlimited"))
+    if unlimited is None:
+        unlimited = bool(max_llm_calls is not None and max_llm_calls <= 0)
+
+    remaining_calls = _coerce_display_int(budget.get("remaining_calls"))
+    if remaining_calls is None:
+        remaining_calls = _coerce_display_int(budget.get("remaining"))
+    if remaining_calls is None and not unlimited and max_llm_calls is not None:
+        remaining_calls = max(0, max_llm_calls - used_calls)
+
+    normalized: dict[str, Any] = {
+        "max_llm_calls": max_llm_calls,
+        "used_calls": used_calls,
+        "attempted_calls": attempted_calls,
+        "unlimited": unlimited,
+        "calls_by_role": _coerce_display_counter_map(
+            budget.get("calls_by_role")
+        ),
+        "attempts_by_role": _coerce_display_counter_map(
+            budget.get("attempts_by_role")
+        ),
+    }
+    if remaining_calls is not None:
+        normalized["remaining_calls"] = remaining_calls
+    return normalized
+
+
+def _resolve_job_llm_budget(
+    request: dict[str, Any],
+    result: dict[str, Any],
+    display: dict[str, Any],
+) -> dict[str, Any]:
+    """组合请求、运行快照和结果里的 LLM 预算信息。 / Resolve the best available LLM budget view for a job."""
+    requested_max_llm_calls = request.get("max_llm_calls")
+    raw_budget = result.get("llm_budget")
+    if not isinstance(raw_budget, dict):
+        raw_budget = display.get("llm_budget")
+    normalized = _normalize_llm_budget(
+        raw_budget,
+        requested_max_llm_calls=requested_max_llm_calls,
+    )
+    if normalized.get("max_llm_calls") is None and not normalized.get("unlimited"):
+        return {}
+    return normalized
+
+
+def _format_llm_budget_text(value: Any) -> str:
+    """格式化 LLM 预算摘要。 / Format a compact LLM budget summary."""
+    budget = value if isinstance(value, dict) else {}
+    used_calls = _coerce_display_int(budget.get("used_calls")) or 0
+    attempted_calls = _coerce_display_int(budget.get("attempted_calls")) or used_calls
+    unlimited = bool(budget.get("unlimited"))
+    max_llm_calls = _coerce_display_int(budget.get("max_llm_calls"))
+    limit_text = "∞" if unlimited else str(max_llm_calls if max_llm_calls is not None else "-")
+    parts = [f"{used_calls} / {limit_text}"]
+    if attempted_calls != used_calls:
+        parts.append(f"尝试 {attempted_calls}")
+    remaining_calls = _coerce_display_int(budget.get("remaining_calls"))
+    if remaining_calls is not None and not unlimited:
+        parts.append(f"剩余 {remaining_calls}")
+    return "（".join([parts[0], "，".join(parts[1:]) + "）"]) if len(parts) > 1 else parts[0]
+
+
+def _format_job_error(error: Any, *, limit: int = 160) -> str:
+    """格式化任务错误信息。 / Format a compact job error message."""
+    if not isinstance(error, dict):
+        return ""
+    code = str(error.get("code") or "").strip()
+    message = str(error.get("message") or "").strip()
+    if not code and not message:
+        return ""
+    if code and message:
+        return _compact_text(f"{code}：{message}", limit)
+    return _compact_text(code or message, limit)
+
+
 def _job_overview_rows(
     payload: dict[str, Any],
     digest: dict[str, Any],
@@ -869,6 +1035,9 @@ def _job_overview_rows(
             rows.append(("执行上限", f"{init.get('max_waves')}（安全上限）"))
         else:
             rows.append(("执行上限", str(init.get("max_waves"))))
+    llm_budget = payload.get("llm_budget") if isinstance(payload.get("llm_budget"), dict) else {}
+    if llm_budget:
+        rows.append(("LLM 调用", _format_llm_budget_text(llm_budget)))
     if digest.get("last_response_mix"):
         rows.append(("末轮响应", _format_response_mix(digest.get("last_response_mix"))))
     if digest.get("last_global_observation"):
@@ -1168,6 +1337,9 @@ def _render_job_payload(
         )
     if status:
         lines.append(f"📌 状态：{_STATUS_LABELS.get(status, status)}")
+    error_text = _format_job_error(payload.get("error"), limit=180)
+    if error_text:
+        lines.append(f"❗ 错误：{error_text}")
     display = payload.get("display")
     if isinstance(display, dict):
         block = _render_display_snapshot(display, include_recent=True)
@@ -1223,13 +1395,20 @@ def _render_job_list_table(payload: dict[str, Any]) -> Table:
     table.add_column("产物文件", overflow="fold")
     table.add_column("创建时间", overflow="fold")
     for item in payload.get("jobs", []):
+        brief_lines: list[str] = []
+        brief_text = str(item.get("brief") or "").strip()
+        if brief_text:
+            brief_lines.append(_compact_text(brief_text, 40))
+        error_text = _format_job_error(item.get("error"), limit=72)
+        if error_text:
+            brief_lines.append(f"错误：{error_text}")
         table.add_row(
             str(item.get("job_id") or ""),
             _STATUS_LABELS.get(str(item.get("status") or ""), str(item.get("status") or "")),
             str(item.get("skill") or ""),
             # `job list` 必须是快速本地命令，绝不能为简述展示再触发 LLM。
             # / `job list` must stay fast and local-only; never invoke the LLM for brief rendering here.
-            _compact_text(item.get("brief"), 40),
+            "\n".join(brief_lines) if brief_lines else "-",
             _render_job_artifacts_text(item.get("artifacts")),
             str(item.get("created_at") or ""),
         )
@@ -3140,6 +3319,7 @@ def _row_display(row: dict[str, Any]) -> dict[str, Any]:
 
 def _status_payload(row: dict[str, Any]) -> dict[str, Any]:
     request = _load_request_json(row)
+    display = _row_display(row)
     job_brief, job_brief_source = _resolved_job_brief(
         request=request,
         brief=row.get("job_brief"),
@@ -3157,12 +3337,15 @@ def _status_payload(row: dict[str, Any]) -> dict[str, Any]:
         "current_wave": row.get("current_wave"),
         "total_waves": row.get("total_waves"),
         "heartbeat_at": row.get("heartbeat_at"),
-        "display": _row_display(row),
+        "display": display,
     }
     elapsed = _elapsed_seconds(row)
     if elapsed is not None:
         payload["elapsed_seconds"] = elapsed
     result = _load_result_json(row)
+    llm_budget = _resolve_job_llm_budget(request, result, display)
+    if llm_budget:
+        payload["llm_budget"] = llm_budget
     if result:
         payload["result"] = result
         payload["summary"] = {
@@ -3175,8 +3358,9 @@ def _status_payload(row: dict[str, Any]) -> dict[str, Any]:
         payload["compact_log_file"] = result.get("compact_log_file")
         payload["summary_md_file"] = result.get("summary_md_file")
         payload["report_md_file"] = result.get("report_md_file")
-    if row.get("error_json"):
-        payload["error"] = json.loads(row["error_json"])
+    error = _load_error_payload(row)
+    if error:
+        payload["error"] = error
     return payload
 
 
@@ -3254,20 +3438,29 @@ def _event_highlights(event: SimulationEvent) -> list[str]:
     return _event_lines(event)
 
 
-def _snapshot_from_status(status: str, message: str) -> dict[str, Any]:
+def _snapshot_from_status(
+    status: str,
+    message: str,
+    *,
+    base_snapshot: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     emoji = {
         "completed": "✅",
         "failed": "❌",
         "cancelled": "🛑",
     }.get(status, "⏳")
-    return {
+    snapshot = {
         "headline": f"{emoji} {message}",
         "progress_bar": _progress_bar(1.0 if status in _TERMINAL_STATUSES else 0.0),
         "phase_label": _STATUS_LABELS.get(status, status.title()),
-        "highlights": [],
+        "highlights": list((base_snapshot or {}).get("highlights") or []),
         "event_lines": [],
-        "recent_events": [],
+        "recent_events": list((base_snapshot or {}).get("recent_events") or []),
     }
+    budget = (base_snapshot or {}).get("llm_budget")
+    if isinstance(budget, dict):
+        snapshot["llm_budget"] = dict(budget)
+    return snapshot
 
 
 def _update_runtime_from_event(
@@ -3318,6 +3511,7 @@ def _build_job_result_payload(
     brief_source: str,
     status: str,
 ) -> dict[str, Any]:
+    llm_budget = _resolve_job_llm_budget(request, result, {})
     return {
         "job_id": job_id,
         "job_brief": brief,
@@ -3334,6 +3528,7 @@ def _build_job_result_payload(
             "prediction_verdict": _derive_prediction_verdict(result),
             "ensemble_runs": request.get("ensemble_runs", 1),
         },
+        "llm_budget": llm_budget,
         "disclaimer": result.get("disclaimer"),
     }
 
@@ -3364,7 +3559,11 @@ def _run_simulation_job(
         repo.update_runtime(
             job_id,
             heartbeat_at=_utcnow_iso(),
-            snapshot=_snapshot_from_status("cancelled", "模拟已取消"),
+            snapshot=_snapshot_from_status(
+                "cancelled",
+                "模拟已取消",
+                base_snapshot=tracker.last_snapshot,
+            ),
         )
         repo.update_status(job_id, "cancelled")
         raise CLIError("USER_INTERRUPT", "模拟已被用户中断。", exit_code=130) from exc
@@ -3373,7 +3572,11 @@ def _run_simulation_job(
         repo.update_runtime(
             job_id,
             heartbeat_at=_utcnow_iso(),
-            snapshot=_snapshot_from_status("failed", "模拟失败"),
+            snapshot=_snapshot_from_status(
+                "failed",
+                "模拟失败",
+                base_snapshot=tracker.last_snapshot,
+            ),
         )
         repo.update_status(job_id, "failed")
         raise CLIError("CONFIG_INVALID", str(exc), exit_code=5) from exc
@@ -3382,7 +3585,11 @@ def _run_simulation_job(
         repo.update_runtime(
             job_id,
             heartbeat_at=_utcnow_iso(),
-            snapshot=_snapshot_from_status("failed", "模拟失败"),
+            snapshot=_snapshot_from_status(
+                "failed",
+                "模拟失败",
+                base_snapshot=tracker.last_snapshot,
+            ),
         )
         repo.update_status(job_id, "failed")
         raise CLIError("LLM_UNAVAILABLE", str(exc), exit_code=4) from exc
@@ -3426,7 +3633,11 @@ def _run_simulation_job(
         phase="SYNTHESIZE",
         progress=1.0,
         heartbeat_at=_utcnow_iso(),
-        snapshot=_snapshot_from_status("completed", "模拟完成"),
+        snapshot=_snapshot_from_status(
+            "completed",
+            "模拟完成",
+            base_snapshot=tracker.last_snapshot,
+        ),
     )
     repo.update_status(job_id, "completed")
     row = repo.get_job(job_id)
@@ -4394,6 +4605,8 @@ def job_list(
     for row in page["jobs"]:
         request = _load_request_json(row)
         result = _load_result_json(row)
+        display = _row_display(row)
+        error = _load_error_payload(row)
         brief, brief_source = _resolved_job_brief(
             request=request,
             brief=row.get("job_brief"),
@@ -4410,6 +4623,8 @@ def job_list(
                 "created_at": row.get("created_at"),
                 "elapsed_seconds": _elapsed_seconds(row),
                 "artifacts": _job_artifacts_payload(result),
+                "llm_budget": _resolve_job_llm_budget(request, result, display),
+                "error": error or None,
             }
         )
     payload = {"jobs": jobs, "total": page["total"]}

@@ -112,6 +112,8 @@ class TestSimulateChannelParam:
             )
             assert "disclaimer" in result
             assert "不构成" in result["disclaimer"] or "does not constitute" in result["disclaimer"]
+            assert result["llm_budget"]["max_calls"] == 200
+            assert result["llm_budget"]["total_calls"] == 0
 
 
 class TestCrossEnsembleBudgetControl:

@@ -1072,6 +1072,13 @@ def test_job_run_blocking_persists_completed_job_and_supports_status_list_result
             "agent_insights": {"star_1": "insight"},
             "output_file": str(output_json),
             "compact_log_file": str(compact_log),
+            "llm_budget": {
+                "max_calls": 800,
+                "total_calls": 27,
+                "total_attempts": 29,
+                "remaining": 773,
+                "unlimited": False,
+            },
         }
 
     async def fake_report(**kwargs):
@@ -1112,6 +1119,9 @@ def test_job_run_blocking_persists_completed_job_and_supports_status_list_result
     assert payload["artifact_dir"]
     assert payload["summary_md_file"].endswith("/summary.md")
     assert payload["report_md_file"].endswith("/report.md")
+    assert payload["llm_budget"]["max_llm_calls"] == 800
+    assert payload["llm_budget"]["used_calls"] == 27
+    assert payload["llm_budget"]["attempted_calls"] == 29
     job_id = payload["job_id"]
 
     status_result = runner.invoke(
@@ -1125,12 +1135,16 @@ def test_job_run_blocking_persists_completed_job_and_supports_status_list_result
     assert status_payload["job_brief_source"] == "fallback"
     assert status_payload["summary_md_file"].endswith("/summary.md")
     assert status_payload["report_md_file"].endswith("/report.md")
+    assert status_payload["llm_budget"]["max_llm_calls"] == 800
+    assert status_payload["llm_budget"]["used_calls"] == 27
 
     list_result = runner.invoke(app, ["job", "list", "--db", str(db_path), "--json"])
     assert list_result.exit_code == 0
     list_payload = _read_json(list_result)
     assert list_payload["jobs"][0]["brief"] == "模拟 generic 平台上的 social-media 传播：Demo title"
     assert list_payload["jobs"][0]["brief_source"] == "fallback"
+    assert list_payload["jobs"][0]["llm_budget"]["max_llm_calls"] == 800
+    assert list_payload["jobs"][0]["llm_budget"]["used_calls"] == 27
 
     result_result = runner.invoke(
         app,
@@ -1571,6 +1585,13 @@ def test_job_run_blocking_human_progress_is_chinese_and_rich(
             "agent_insights": {},
             "output_file": str(output_json),
             "compact_log_file": str(compact_log),
+            "llm_budget": {
+                "max_calls": 800,
+                "total_calls": 61,
+                "total_attempts": 64,
+                "remaining": 739,
+                "unlimited": False,
+            },
         }
 
     monkeypatch.setattr("ripple.cli.app.simulate", fake_simulate)
@@ -1627,6 +1648,8 @@ def test_job_run_blocking_human_progress_is_chinese_and_rich(
     assert "热度增长，情绪中性，结构有序，未发生相变" in result.stderr
     assert "█" in result.stderr
     assert "合议庭最终评分" in result.stdout
+    assert "LLM 调用" in result.stdout
+    assert "61 / 800" in result.stdout
     assert "传播动力学审查员" in result.stdout
     assert "合议轮次回顾" in result.stdout
     assert "关键时间线" in result.stdout
@@ -1644,7 +1667,11 @@ def test_job_status_human_renders_friendly_snapshot(tmp_path: Path) -> None:
     db_path = tmp_path / "jobs.db"
     repo = JobRepoSQLite(db_path)
     repo.init_schema()
-    repo.create_job("job_demo", {"event": {"title": "demo"}, "ensemble_runs": 1}, source="cli")
+    repo.create_job(
+        "job_demo",
+        {"event": {"title": "demo"}, "ensemble_runs": 1, "max_llm_calls": 800},
+        source="cli",
+    )
     repo.update_runtime(
         "job_demo",
         phase="RIPPLE",
@@ -1657,6 +1684,13 @@ def test_job_status_human_renders_friendly_snapshot(tmp_path: Path) -> None:
             "phase_label": "涟漪传播",
             "highlights": ["预估轮次：12", "执行上限：36", "当前轮次：8"],
             "recent_events": [{"emoji": "🧠", "text": "全视者判断：冷启动偏弱。"}],
+            "llm_budget": {
+                "max_calls": 800,
+                "total_calls": 33,
+                "total_attempts": 35,
+                "remaining": 767,
+                "unlimited": False,
+            },
         },
     )
     repo.update_status("job_demo", "running")
@@ -1667,6 +1701,89 @@ def test_job_status_human_renders_friendly_snapshot(tmp_path: Path) -> None:
     assert "第 8/12 轮传播" in result.stdout
     assert "全视者判断：冷启动偏弱" in result.stdout
     assert "预估轮次：12" in result.stdout
+    assert "LLM 调用" in result.stdout
+    assert "33 / 800" in result.stdout
+
+
+def test_job_status_human_shows_error_message_for_failed_job(tmp_path: Path) -> None:
+    """job status 人类模式应展示失败原因。 / Human job status should show the persisted failure reason."""
+    from ripple.cli.app import app
+
+    db_path = tmp_path / "jobs.db"
+    repo = JobRepoSQLite(db_path)
+    repo.init_schema()
+    repo.create_job(
+        "job_failed",
+        {"event": {"title": "demo"}, "skill": "social-media", "max_llm_calls": 800},
+        source="cli",
+    )
+    repo.update_runtime(
+        "job_failed",
+        phase="RIPPLE",
+        progress=0.52,
+        current_wave=20,
+        total_waves=42,
+        snapshot={
+            "headline": "❌ 模拟失败",
+            "progress_bar": "[████████████████████████] 100.0%",
+            "phase_label": "失败",
+            "highlights": ["当前轮次：20/42"],
+            "recent_events": [{"emoji": "🌊", "text": "第 20/42 轮传播"}],
+            "llm_budget": {
+                "max_calls": 800,
+                "total_calls": 800,
+                "total_attempts": 804,
+                "remaining": 0,
+                "unlimited": False,
+            },
+        },
+    )
+    repo.set_error(
+        "job_failed",
+        {
+            "code": "SIMULATION_FAILED",
+            "message": "LLM 调用次数已达上限（角色: omniscient）",
+        },
+    )
+    repo.update_status("job_failed", "failed")
+
+    result = runner.invoke(app, ["job", "status", "job_failed", "--db", str(db_path)])
+
+    assert result.exit_code == 0
+    assert "SIMULATION_FAILED" in result.stdout
+    assert "LLM 调用次数已达上限" in result.stdout
+    assert "LLM 调用" in result.stdout
+    assert "800 / 800" in result.stdout
+
+
+def test_job_list_human_shows_error_message_for_failed_job(tmp_path: Path) -> None:
+    """job list 人类模式应把失败原因展示在简述区。 / Human job list should expose persisted failure reasons."""
+    from ripple.cli.app import app
+
+    db_path = tmp_path / "jobs.db"
+    repo = JobRepoSQLite(db_path)
+    repo.init_schema()
+    repo.create_job(
+        "job_list_failed",
+        {"event": {"title": "demo"}, "skill": "social-media", "max_llm_calls": 800},
+        source="cli",
+        job_brief="failed job brief",
+        job_brief_source="fallback",
+    )
+    repo.set_error(
+        "job_list_failed",
+        {
+            "code": "SIMULATION_FAILED",
+            "message": "LLM 调用次数已达上限（角色: omniscient）",
+        },
+    )
+    repo.update_status("job_list_failed", "failed")
+
+    result = runner.invoke(app, ["job", "list", "--db", str(db_path)])
+
+    assert result.exit_code == 0
+    normalized = _normalize_table_text(result.stdout)
+    assert "错误：SIMULATION_FAILED：LLM调用次数已达上限（角色:omniscient）" in normalized
 
 
 def test_job_list_human_never_calls_localization_llm(
