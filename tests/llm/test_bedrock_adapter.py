@@ -102,6 +102,7 @@ class TestFromEndpointConfig:
             temperature = 0.5
             max_tokens = 2048
             max_retries = 2
+            stream = True
             extra = {"region_name": "us-east-1", "aws_profile": "dev"}
 
         with patch("ripple.llm.bedrock_adapter._HAS_BOTO3", True), \

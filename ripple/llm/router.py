@@ -143,6 +143,8 @@ class ModelRouter:
         llm_config: Optional[Dict[str, Any]] = None,
         max_llm_calls: int = 800,
         config_file: Optional[str] = None,
+        stream: Optional[bool] = None,
+        timeout_override: Optional[float] = None,
     ) -> None:
         """初始化路由器。 / Initialize router.
 
@@ -157,6 +159,10 @@ class ModelRouter:
                 / Max LLM calls per simulation. <= 0 means unlimited.
             config_file: LLM 配置文件路径（可选，不传则自动搜索）。
                 / Config file path (optional, auto-search if omitted).
+            stream: 是否强制流式/非流式调用（None 表示使用各角色配置的默认值）。
+                / Force streaming mode (None = use per-role config default).
+            timeout_override: 覆盖所有角色的 LLM 超时时间（秒），None 表示使用配置默认值。
+                / Override LLM timeout for all roles (seconds). None = use config default.
         """
         from ripple.llm.config import LLMConfigLoader
 
@@ -164,11 +170,12 @@ class ModelRouter:
             llm_config=llm_config, config_file=config_file
         )
         self._budget = BudgetState(max_calls=max_llm_calls)
+        self._stream_override = stream
+        self._timeout_override = timeout_override
 
         # 适配器缓存：角色 → adapter 实例 / Adapter cache: role → adapter instance
         self._model_cache: Dict[str, Any] = {}
 
-        # 启动时输出配置摘要（隐藏 API Key） / Log config summary at startup (key masked)
         summary = self._config_loader.summary()
         for role, info in summary.items():
             logger.info(
@@ -183,6 +190,10 @@ class ModelRouter:
             logger.info("LLM 调用次数: 不限制")
         else:
             logger.info("LLM 调用次数上限: %d", max_llm_calls)
+        if self._stream_override is not None:
+            logger.info("LLM 流式模式覆盖: %s", self._stream_override)
+        if self._timeout_override is not None:
+            logger.info("LLM 超时覆盖: %.1fs", self._timeout_override)
 
     @property
     def budget(self) -> BudgetState:
@@ -296,10 +307,17 @@ class ModelRouter:
         # 获取角色的端点配置（支持角色回退） / Get endpoint config for role (with fallback)
         config = self._resolve_with_fallback(role)
 
-        # 降级时替换模型名，保留连接配置 / Replace model name on degradation, keep connection config
+        # 应用运行时覆盖（stream / timeout） / Apply runtime overrides (stream / timeout)
+        from dataclasses import replace
+        overrides: Dict[str, Any] = {}
         if degraded_model:
-            from dataclasses import replace
-            config = replace(config, model_name=degraded_model)
+            overrides["model_name"] = degraded_model
+        if self._stream_override is not None:
+            overrides["stream"] = self._stream_override
+        if self._timeout_override is not None:
+            overrides["timeout"] = self._timeout_override
+        if overrides:
+            config = replace(config, **overrides)
 
         # 根据 api_mode 创建对应的适配器 / Create adapter by api_mode
         adapter = self._create_adapter(config)

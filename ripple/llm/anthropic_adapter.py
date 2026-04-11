@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -51,6 +51,7 @@ class AnthropicAdapter:
         max_tokens: int = 4096,
         timeout: float = 120.0,
         max_retries: int = 3,
+        stream: bool = True,
     ):
         """初始化适配器。 / Initialize adapter.
 
@@ -62,6 +63,7 @@ class AnthropicAdapter:
             max_tokens: 最大输出 token 数。 / Max output tokens.
             timeout: 请求超时时间（秒）。 / Request timeout in seconds.
             max_retries: 最大重试次数。 / Max retry count.
+            stream: 是否使用流式调用（SSE），默认 True。 / Whether to use streaming (SSE), default True.
         """
         self._endpoint = self._resolve_endpoint(url)
         self._api_key = api_key
@@ -70,6 +72,7 @@ class AnthropicAdapter:
         self._max_tokens = max_tokens
         self._timeout = timeout
         self._max_retries = max_retries
+        self._stream = stream
 
     async def call(
         self,
@@ -77,6 +80,9 @@ class AnthropicAdapter:
         user_message: str,
     ) -> str:
         """调用 Anthropic Messages API 并返回文本响应。 / Call Anthropic Messages API and return text.
+
+        根据 self._stream 决定使用流式（SSE）或非流式调用。
+        / Uses streaming (SSE) or non-streaming based on self._stream.
 
         Args:
             system_prompt: 系统提示词。 / System prompt.
@@ -90,6 +96,8 @@ class AnthropicAdapter:
             ValueError: 响应格式无法解析。 / Unparseable response format.
         """
         request_body = self._build_request(system_prompt, user_message)
+        if self._stream:
+            request_body["stream"] = True
 
         headers: Dict[str, str] = {
             "Content-Type": "application/json",
@@ -100,17 +108,10 @@ class AnthropicAdapter:
         last_error: Optional[Exception] = None
         for attempt in range(self._max_retries + 1):
             try:
-                async with httpx.AsyncClient(
-                    timeout=self._timeout
-                ) as client:
-                    response = await client.post(
-                        self._endpoint,
-                        headers=headers,
-                        json=request_body,
-                    )
-                    response.raise_for_status()
-                    result = response.json()
-                    return self._extract_text(result)
+                if self._stream:
+                    return await self._call_stream(headers, request_body)
+                else:
+                    return await self._call_non_stream(headers, request_body)
 
             except httpx.HTTPStatusError as e:
                 last_error = e
@@ -142,6 +143,63 @@ class AnthropicAdapter:
             f"Anthropic Messages API 调用在 {self._max_retries + 1} 次尝试后仍失败: "
             f"{last_error}"
         )
+
+    async def _call_non_stream(
+        self, headers: Dict[str, str], request_body: Dict[str, Any]
+    ) -> str:
+        """非流式调用。 / Non-streaming call."""
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            response = await client.post(
+                self._endpoint, headers=headers, json=request_body,
+            )
+            response.raise_for_status()
+            result = response.json()
+            return self._extract_text(result)
+
+    async def _call_stream(
+        self, headers: Dict[str, str], request_body: Dict[str, Any]
+    ) -> str:
+        """流式调用（SSE）：逐 chunk 接收，拼接后返回完整文本。
+        / Streaming call (SSE): receive chunks incrementally, return full text.
+
+        Anthropic SSE 事件类型 / SSE event types:
+          event: content_block_delta  →  data: {"delta":{"type":"text_delta","text":"..."}}
+          event: message_stop         →  结束 / end
+        """
+        stream_timeout = httpx.Timeout(
+            connect=30.0, read=self._timeout, write=30.0, pool=30.0,
+        )
+        chunks: List[str] = []
+        async with httpx.AsyncClient(timeout=stream_timeout) as client:
+            async with client.stream(
+                "POST", self._endpoint, headers=headers, json=request_body,
+            ) as response:
+                response.raise_for_status()
+                event_type = ""
+                async for line in response.aiter_lines():
+                    if line.startswith("event:"):
+                        event_type = line[len("event:"):].strip()
+                        continue
+                    if not line.startswith("data:"):
+                        continue
+                    if event_type == "message_stop":
+                        break
+                    payload = line[len("data:"):].strip()
+                    try:
+                        data = json.loads(payload)
+                    except json.JSONDecodeError:
+                        continue
+                    if event_type == "content_block_delta":
+                        delta = data.get("delta", {})
+                        if delta.get("type") == "text_delta":
+                            text = delta.get("text", "")
+                            if text:
+                                chunks.append(text)
+
+        text = "".join(chunks)
+        if not text:
+            logger.warning("Anthropic Messages API 流式响应未收到任何文本内容")
+        return text
 
     # =========================================================================
     # URL 解析 / URL Resolution
@@ -236,4 +294,5 @@ class AnthropicAdapter:
             max_tokens=config.max_tokens or 4096,
             timeout=config.timeout or 120.0,
             max_retries=config.max_retries,
+            stream=config.stream,
         )

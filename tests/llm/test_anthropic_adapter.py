@@ -114,6 +114,7 @@ class TestFromEndpointConfig:
             max_tokens = 4096
             timeout = 120.0
             max_retries = 3
+            stream = True
 
         with pytest.raises(ValueError, match="api_key"):
             AnthropicAdapter.from_endpoint_config(FakeConfig())
@@ -128,6 +129,7 @@ class TestFromEndpointConfig:
             max_tokens = 2048
             timeout = 60.0
             max_retries = 2
+            stream = True
 
         adapter = AnthropicAdapter.from_endpoint_config(FakeConfig())
         assert adapter._model == "claude-sonnet-4-20250514"
@@ -144,6 +146,7 @@ class TestFromEndpointConfig:
             max_tokens = 4096
             timeout = 120.0
             max_retries = 3
+            stream = True
 
         adapter = AnthropicAdapter.from_endpoint_config(FakeConfig())
         assert "my-proxy.com" in adapter._endpoint

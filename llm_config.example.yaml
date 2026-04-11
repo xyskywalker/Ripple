@@ -55,6 +55,10 @@ _default:
   api_mode: responses                    # 自动推断，可省略 / Auto-inferred, can be omitted
   temperature: 0.7
   max_retries: 3
+  # stream: true                         # 流式调用（SSE），默认 true；设为 false 切换为非流式
+                                          # Streaming (SSE), default true; set false for non-streaming
+  # timeout: 120                          # 单次 LLM 请求超时（秒），可被 simulate(llm_timeout=) 覆盖
+                                          # Per-call LLM timeout (seconds), overridable by simulate(llm_timeout=)
 
 # ---------------------------------------------------------------------------
 # 角色级配置 / Role-level config

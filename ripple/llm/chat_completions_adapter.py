@@ -63,6 +63,7 @@ class ChatCompletionsAdapter:
         timeout: float = 120.0,
         max_retries: int = 3,
         api_version: Optional[str] = None,
+        stream: bool = True,
     ):
         """初始化适配器。 / Initialize adapter.
 
@@ -78,6 +79,7 @@ class ChatCompletionsAdapter:
             timeout: 请求超时时间（秒）。 / Request timeout in seconds.
             max_retries: 最大重试次数。 / Max retry count.
             api_version: Azure API 版本（可选）。 / Azure API version (optional).
+            stream: 是否使用流式调用（SSE），默认 True。 / Whether to use streaming (SSE), default True.
         """
         self._endpoint = self._resolve_endpoint(url, api_version)
         self._is_azure = self._detect_azure(url)
@@ -87,6 +89,7 @@ class ChatCompletionsAdapter:
         self._max_tokens = max_tokens
         self._timeout = timeout
         self._max_retries = max_retries
+        self._stream = stream
 
         if self._is_azure:
             logger.info(
@@ -101,6 +104,11 @@ class ChatCompletionsAdapter:
     ) -> str:
         """调用 Chat Completions API 并返回文本响应。 / Call Chat Completions API and return text.
 
+        根据 self._stream 决定使用流式（SSE）或非流式调用。
+        流式调用可有效避免长响应超时。两种模式接口相同：返回完整文本。
+        / Uses streaming (SSE) or non-streaming based on self._stream.
+        Streaming avoids timeout for long responses. Both modes return full text.
+
         Args:
             system_prompt: 系统提示词。 / System prompt.
             user_message: 用户消息。 / User message.
@@ -113,6 +121,8 @@ class ChatCompletionsAdapter:
             ValueError: 响应格式无法解析。 / Unparseable response format.
         """
         request_body = self._build_request(system_prompt, user_message)
+        if self._stream:
+            request_body["stream"] = True
 
         headers: Dict[str, str] = {
             "Content-Type": "application/json",
@@ -125,17 +135,10 @@ class ChatCompletionsAdapter:
         last_error: Optional[Exception] = None
         for attempt in range(self._max_retries + 1):
             try:
-                async with httpx.AsyncClient(
-                    timeout=self._timeout
-                ) as client:
-                    response = await client.post(
-                        self._endpoint,
-                        headers=headers,
-                        json=request_body,
-                    )
-                    response.raise_for_status()
-                    result = response.json()
-                    return self._extract_text(result)
+                if self._stream:
+                    return await self._call_stream(headers, request_body)
+                else:
+                    return await self._call_non_stream(headers, request_body)
 
             except httpx.HTTPStatusError as e:
                 last_error = e
@@ -167,6 +170,62 @@ class ChatCompletionsAdapter:
             f"Chat Completions API 调用在 {self._max_retries + 1} 次尝试后仍失败: "
             f"{last_error}"
         )
+
+    async def _call_non_stream(
+        self, headers: Dict[str, str], request_body: Dict[str, Any]
+    ) -> str:
+        """非流式调用。 / Non-streaming call."""
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            response = await client.post(
+                self._endpoint, headers=headers, json=request_body,
+            )
+            response.raise_for_status()
+            result = response.json()
+            return self._extract_text(result)
+
+    async def _call_stream(
+        self, headers: Dict[str, str], request_body: Dict[str, Any]
+    ) -> str:
+        """流式调用（SSE）：逐 chunk 接收，拼接后返回完整文本。
+        / Streaming call (SSE): receive chunks incrementally, return full text.
+
+        SSE 格式 / SSE format:
+          data: {"choices":[{"delta":{"content":"..."}}]}
+          data: [DONE]
+        """
+        # 流式超时：connect 保持紧凑，read 放宽（token 间隔可能较长）
+        # / Stream timeout: tight connect, relaxed read (token intervals may be long)
+        stream_timeout = httpx.Timeout(
+            connect=30.0, read=self._timeout, write=30.0, pool=30.0,
+        )
+        chunks: List[str] = []
+        async with httpx.AsyncClient(timeout=stream_timeout) as client:
+            async with client.stream(
+                "POST", self._endpoint, headers=headers, json=request_body,
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[len("data:"):].strip()
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        data = json.loads(payload)
+                    except json.JSONDecodeError:
+                        continue
+                    delta = (
+                        data.get("choices", [{}])[0]
+                        .get("delta", {})
+                        .get("content")
+                    )
+                    if delta:
+                        chunks.append(delta)
+
+        text = "".join(chunks)
+        if not text:
+            logger.warning("Chat Completions API 流式响应未收到任何文本内容")
+        return text
 
     # =========================================================================
     # URL 与认证检测 / URL & Auth Detection
@@ -286,4 +345,5 @@ class ChatCompletionsAdapter:
             timeout=config.timeout or 120.0,
             max_retries=config.max_retries,
             api_version=config.api_version,
+            stream=config.stream,
         )

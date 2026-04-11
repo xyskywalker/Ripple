@@ -163,6 +163,7 @@ class TestFromEndpointConfig:
             timeout = 120.0
             max_retries = 3
             api_version = None
+            stream = True
 
         with pytest.raises(ValueError, match="url"):
             ChatCompletionsAdapter.from_endpoint_config(FakeConfig())
@@ -178,6 +179,7 @@ class TestFromEndpointConfig:
             timeout = 120.0
             max_retries = 3
             api_version = None
+            stream = True
 
         with pytest.raises(ValueError, match="api_key"):
             ChatCompletionsAdapter.from_endpoint_config(FakeConfig())
@@ -193,6 +195,7 @@ class TestFromEndpointConfig:
             timeout = 60.0
             max_retries = 2
             api_version = None
+            stream = True
 
         adapter = ChatCompletionsAdapter.from_endpoint_config(FakeConfig())
         assert adapter._model == "gpt-4o"

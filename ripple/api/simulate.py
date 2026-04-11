@@ -261,6 +261,9 @@ async def simulate(
     output_path: Optional[str] = None,
     on_progress: Optional[ProgressCallback] = None,
     simulation_horizon: Optional[str] = None,
+    # --- LLM 调用模式控制 / LLM call mode ---
+    stream: Optional[bool] = None,
+    llm_timeout: Optional[float] = None,
     # --- PMF Validation extensions ---
     channel: Optional[str] = None,
     vertical: Optional[str] = None,
@@ -301,6 +304,11 @@ async def simulate(
             适用于实时 UI 更新、WebSocket 推送、进度条显示等场景。
         simulation_horizon: 模拟时间范围（如 "48h"），用于确定性
             wave 数计算。若不传则回退到 LLM 估计的 estimated_total_waves。
+        stream: LLM 调用模式（None=使用配置默认值[默认流式]，True=强制流式，False=强制非流式）。
+            流式调用通过 SSE 逐 token 接收响应，有效避免长响应超时。
+            / LLM call mode (None=config default[streaming], True=force stream, False=force non-stream).
+        llm_timeout: LLM 单次调用超时时间（秒），覆盖配置文件中的默认值。
+            / LLM per-call timeout in seconds, overrides config default.
         channel: 渠道标识（v0 仅支持 generic/None，自媒体通过 platform 指定）。
         ensemble_runs: 集成运行次数（默认 1）。共享同一 BudgetState，不倍增预算。
         deliberation_rounds: 合议庭总轮数（含 Round 1 独立评估），服务端上限 4。
@@ -327,6 +335,8 @@ async def simulate(
         llm_config=llm_config,
         max_llm_calls=max_llm_calls,
         config_file=config_file,
+        stream=stream,
+        timeout_override=llm_timeout,
     )
 
     def _forward_progress_with_budget(event: SimulationEvent):

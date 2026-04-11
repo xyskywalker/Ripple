@@ -114,6 +114,12 @@ def create_app() -> FastAPI:
         request = load_job_request(row) or {}
         llm_config = extract_request_llm_config(request)
 
+        # 可选：流式模式和超时覆盖 / Optional: stream mode and timeout override
+        stream_val = payload.get("stream")
+        stream = stream_val if isinstance(stream_val, bool) else None
+        llm_timeout_raw = payload.get("llm_timeout")
+        llm_timeout = float(llm_timeout_raw) if llm_timeout_raw is not None else None
+
         try:
             report = await generate_report_from_result(
                 result=result,
@@ -122,6 +128,8 @@ def create_app() -> FastAPI:
                 max_llm_calls=max_llm_calls,
                 config_file=settings.llm_config_path,
                 llm_config=llm_config,
+                stream=stream,
+                llm_timeout=llm_timeout,
             )
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc

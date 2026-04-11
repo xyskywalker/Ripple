@@ -72,6 +72,8 @@ class ModelEndpointConfig:
     max_tokens: Optional[int] = 4096
     timeout: Optional[float] = None
     max_retries: int = 3
+    # 流式调用（SSE）：减少长响应超时风险 / Streaming (SSE): reduces timeout risk for long responses
+    stream: bool = True
 
     # --- 可选：Azure 专用 / Optional: Azure-specific ---
     api_version: Optional[str] = None
@@ -133,9 +135,14 @@ class ModelEndpointConfig:
             "max_tokens",
             "timeout",
             "max_retries",
+            "stream",
             "api_version",
             "azure_deployment_name",
         }
+
+        # stream: 默认 True（流式调用），支持显式 False 关闭 / Default True, explicit False to disable
+        stream_val = data.get("stream")
+        stream = stream_val if isinstance(stream_val, bool) else True
 
         return cls(
             model_platform=model_platform,
@@ -149,6 +156,7 @@ class ModelEndpointConfig:
             ),
             timeout=data.get("timeout"),
             max_retries=int(data.get("max_retries", 3)),
+            stream=stream,
             api_version=data.get("api_version"),
             azure_deployment_name=data.get("azure_deployment_name"),
             extra={

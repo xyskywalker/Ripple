@@ -79,7 +79,7 @@ def test_generate_report_endpoint_returns_service_report(monkeypatch) -> None:
         "error_json": None,
     }
 
-    async def fake_generate_report_from_result(*, result, rounds, role, max_llm_calls, config_file, llm_config=None):
+    async def fake_generate_report_from_result(*, result, rounds, role, max_llm_calls, config_file, llm_config=None, stream=None, llm_timeout=None):
         assert result["compact_log_file"] == "/data/ripple_outputs/demo.md"
         assert rounds == [{"label": "r1", "system_prompt": "sys", "extra_user_context": ""}]
         assert role == "omniscient"

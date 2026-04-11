@@ -49,6 +49,7 @@ class BedrockAdapter:
         temperature: float = 0.7,
         max_tokens: int = 4096,
         max_retries: int = 3,
+        stream: bool = True,
     ):
         """初始化适配器。 / Initialize adapter.
 
@@ -59,6 +60,7 @@ class BedrockAdapter:
             temperature: 生成温度。 / Generation temperature.
             max_tokens: 最大输出 token 数。 / Max output tokens.
             max_retries: 最大重试次数。 / Max retry count.
+            stream: 是否使用流式调用，默认 True。 / Whether to use streaming, default True.
 
         Raises:
             ImportError: boto3 未安装。 / boto3 not installed.
@@ -73,8 +75,8 @@ class BedrockAdapter:
         self._temperature = temperature
         self._max_tokens = max_tokens
         self._max_retries = max_retries
+        self._stream = stream
 
-        # 创建 boto3 session 和 client / Create boto3 session & client
         session_kwargs: Dict[str, Any] = {}
         if aws_profile:
             session_kwargs["profile_name"] = aws_profile
@@ -92,6 +94,10 @@ class BedrockAdapter:
         user_message: str,
     ) -> str:
         """调用 Bedrock InvokeModel API 并返回文本响应。 / Call Bedrock InvokeModel API and return text.
+
+        根据 self._stream 决定使用流式或非流式调用。
+        流式使用 invoke_model_with_response_stream，非流式使用 invoke_model。
+        / Uses invoke_model_with_response_stream (streaming) or invoke_model.
 
         Args:
             system_prompt: 系统提示词。 / System prompt.
@@ -111,18 +117,10 @@ class BedrockAdapter:
         last_error: Optional[Exception] = None
         for attempt in range(self._max_retries + 1):
             try:
-                # boto3 是同步的，用 asyncio.to_thread 包装 / boto3 is sync; wrap with asyncio.to_thread
-                response = await asyncio.to_thread(
-                    self._client.invoke_model,
-                    modelId=self._model,
-                    body=body_json,
-                    contentType="application/json",
-                    accept="application/json",
-                )
-                response_body = json.loads(
-                    response["body"].read().decode("utf-8")
-                )
-                return self._extract_text(response_body)
+                if self._stream:
+                    return await self._call_stream(body_json)
+                else:
+                    return await self._call_non_stream(body_json)
 
             except Exception as e:
                 last_error = e
@@ -137,6 +135,53 @@ class BedrockAdapter:
             f"Bedrock InvokeModel 调用在 {self._max_retries + 1} 次尝试后仍失败: "
             f"{last_error}"
         )
+
+    async def _call_non_stream(self, body_json: str) -> str:
+        """非流式调用。 / Non-streaming call via invoke_model."""
+        import asyncio
+
+        response = await asyncio.to_thread(
+            self._client.invoke_model,
+            modelId=self._model,
+            body=body_json,
+            contentType="application/json",
+            accept="application/json",
+        )
+        response_body = json.loads(response["body"].read().decode("utf-8"))
+        return self._extract_text(response_body)
+
+    async def _call_stream(self, body_json: str) -> str:
+        """流式调用：使用 invoke_model_with_response_stream 接收 EventStream。
+        / Streaming call via invoke_model_with_response_stream.
+
+        Bedrock EventStream chunk 格式 / EventStream chunk format:
+          Anthropic: {"type":"content_block_delta","delta":{"type":"text_delta","text":"..."}}
+          Amazon Titan: {"outputText":"..."}
+        """
+        import asyncio
+
+        def _invoke_stream() -> str:
+            response = self._client.invoke_model_with_response_stream(
+                modelId=self._model,
+                body=body_json,
+                contentType="application/json",
+                accept="application/json",
+            )
+            chunks = []
+            for event in response["body"]:
+                chunk_bytes = event.get("chunk", {}).get("bytes", b"")
+                if not chunk_bytes:
+                    continue
+                try:
+                    data = json.loads(chunk_bytes.decode("utf-8"))
+                except json.JSONDecodeError:
+                    continue
+                text = self._extract_stream_chunk(data)
+                if text:
+                    chunks.append(text)
+            return "".join(chunks)
+
+        return await asyncio.to_thread(_invoke_stream)
 
     # =========================================================================
     # 请求构建与响应解析 / Request Building & Response Parsing
@@ -176,6 +221,18 @@ class BedrockAdapter:
                 "temperature": self._temperature,
             },
         }
+
+    def _extract_stream_chunk(self, data: Dict[str, Any]) -> str:
+        """从流式 EventStream chunk 中提取增量文本。 / Extract incremental text from stream chunk."""
+        if self._is_anthropic:
+            # Anthropic-on-Bedrock: content_block_delta
+            if data.get("type") == "content_block_delta":
+                delta = data.get("delta", {})
+                if delta.get("type") == "text_delta":
+                    return delta.get("text", "")
+            return ""
+        # Amazon Titan: 每个 chunk 含 outputText
+        return data.get("outputText", "")
 
     def _extract_text(self, response_data: Dict[str, Any]) -> str:
         """从响应中提取文本内容。 / Extract text from response."""
@@ -226,4 +283,5 @@ class BedrockAdapter:
             temperature=config.temperature,
             max_tokens=config.max_tokens or 4096,
             max_retries=config.max_retries,
+            stream=config.stream,
         )

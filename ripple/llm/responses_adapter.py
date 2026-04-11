@@ -69,6 +69,7 @@ class ResponsesAPIAdapter:
         timeout: float = 120.0,
         max_retries: int = 3,
         api_version: Optional[str] = None,
+        stream: bool = True,
     ):
         """初始化适配器。 / Initialize adapter.
 
@@ -84,11 +85,9 @@ class ResponsesAPIAdapter:
             timeout: 请求超时时间（秒）。 / Request timeout in seconds.
             max_retries: 最大重试次数。 / Max retry count.
             api_version: Azure API 版本（可选）。 / Azure API version (optional).
+            stream: 是否使用流式调用（SSE），默认 True。 / Whether to use streaming (SSE), default True.
         """
-        # 智能解析 URL：判断是否需追加 /responses 和 query 参数 / Smart URL resolution
         self._endpoint = self._resolve_endpoint(url, api_version)
-
-        # 自动检测 Azure 域名以决定认证头格式 / Auto-detect Azure domain for auth header
         self._is_azure = self._detect_azure(url)
 
         self._api_key = api_key
@@ -97,6 +96,7 @@ class ResponsesAPIAdapter:
         self._max_tokens = max_tokens
         self._timeout = timeout
         self._max_retries = max_retries
+        self._stream = stream
 
         if self._is_azure:
             logger.info(
@@ -111,6 +111,9 @@ class ResponsesAPIAdapter:
     ) -> str:
         """调用 Responses API 并返回文本响应。 / Call Responses API and return text.
 
+        根据 self._stream 决定使用流式（SSE）或非流式调用。
+        / Uses streaming (SSE) or non-streaming based on self._stream.
+
         Args:
             system_prompt: 系统提示词（作为 instructions）。 / System prompt (as instructions).
             user_message: 用户消息。 / User message.
@@ -122,10 +125,10 @@ class ResponsesAPIAdapter:
             httpx.HTTPStatusError: HTTP 请求失败。 / HTTP request failed.
             ValueError: 响应格式无法解析。 / Unparseable response format.
         """
-        # 构建请求体 / Build request body
         request_body = self._build_request(system_prompt, user_message)
+        if self._stream:
+            request_body["stream"] = True
 
-        # 请求头：Azure 用 api-key，其他用 Bearer / Headers: Azure uses api-key, others use Bearer
         headers: Dict[str, str] = {
             "Content-Type": "application/json",
         }
@@ -134,21 +137,13 @@ class ResponsesAPIAdapter:
         else:
             headers["Authorization"] = f"Bearer {self._api_key}"
 
-        # 发送请求（带重试） / Send request with retries
         last_error: Optional[Exception] = None
         for attempt in range(self._max_retries + 1):
             try:
-                async with httpx.AsyncClient(
-                    timeout=self._timeout
-                ) as client:
-                    response = await client.post(
-                        self._endpoint,
-                        headers=headers,
-                        json=request_body,
-                    )
-                    response.raise_for_status()
-                    result = response.json()
-                    return self._extract_text(result)
+                if self._stream:
+                    return await self._call_stream(headers, request_body)
+                else:
+                    return await self._call_non_stream(headers, request_body)
 
             except httpx.HTTPStatusError as e:
                 last_error = e
@@ -180,6 +175,65 @@ class ResponsesAPIAdapter:
             f"Responses API 调用在 {self._max_retries + 1} 次尝试后仍失败: "
             f"{last_error}"
         )
+
+    async def _call_non_stream(
+        self, headers: Dict[str, str], request_body: Dict[str, Any]
+    ) -> str:
+        """非流式调用。 / Non-streaming call."""
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            response = await client.post(
+                self._endpoint, headers=headers, json=request_body,
+            )
+            response.raise_for_status()
+            result = response.json()
+            return self._extract_text(result)
+
+    async def _call_stream(
+        self, headers: Dict[str, str], request_body: Dict[str, Any]
+    ) -> str:
+        """流式调用（SSE）：逐 chunk 接收，拼接后返回完整文本。
+        / Streaming call (SSE): receive chunks incrementally, return full text.
+
+        Responses API SSE 事件类型 / SSE event types:
+          event: response.output_text.delta  →  data: {"delta":"..."}
+          event: response.completed          →  结束 / end
+        """
+        stream_timeout = httpx.Timeout(
+            connect=30.0, read=self._timeout, write=30.0, pool=30.0,
+        )
+        chunks: List[str] = []
+        async with httpx.AsyncClient(timeout=stream_timeout) as client:
+            async with client.stream(
+                "POST", self._endpoint, headers=headers, json=request_body,
+            ) as response:
+                response.raise_for_status()
+                event_type = ""
+                async for line in response.aiter_lines():
+                    # SSE 格式：event: xxx / data: xxx / 空行分隔
+                    if line.startswith("event:"):
+                        event_type = line[len("event:"):].strip()
+                        continue
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[len("data:"):].strip()
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        data = json.loads(payload)
+                    except json.JSONDecodeError:
+                        continue
+                    # response.output_text.delta 事件携带增量文本 / delta event carries incremental text
+                    if event_type == "response.output_text.delta":
+                        delta = data.get("delta", "")
+                        if delta:
+                            chunks.append(delta)
+                    elif event_type in ("response.completed", "response.done"):
+                        break
+
+        text = "".join(chunks)
+        if not text:
+            logger.warning("Responses API 流式响应未收到任何文本内容")
+        return text
 
     # =========================================================================
     # URL 与认证检测 / URL & Auth Detection
@@ -349,4 +403,5 @@ class ResponsesAPIAdapter:
             timeout=config.timeout or 120.0,
             max_retries=config.max_retries,
             api_version=config.api_version,
+            stream=config.stream,
         )

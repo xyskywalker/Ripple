@@ -490,6 +490,8 @@ async def generate_report_from_result(
     max_llm_calls: int = 10,
     config_file: Optional[str] = None,
     llm_config: Optional[Dict[str, Any]] = None,
+    stream: Optional[bool] = None,
+    llm_timeout: Optional[float] = None,
 ) -> Optional[str]:
     normalized_rounds = _normalize_rounds(rounds)
     log_text = load_simulation_log(result)
@@ -497,6 +499,8 @@ async def generate_report_from_result(
         llm_config=llm_config,
         max_llm_calls=max_llm_calls,
         config_file=config_file,
+        stream=stream,
+        timeout_override=llm_timeout,
     )
 
     parts: List[str] = []
@@ -527,6 +531,8 @@ async def generate_skill_report_from_result(
     request: Dict[str, Any],
     config_file: Optional[str] = None,
     llm_config: Optional[Dict[str, Any]] = None,
+    stream: Optional[bool] = None,
+    llm_timeout: Optional[float] = None,
     profile_name: str = "default",
     skill_path: str | Path | None = None,
 ) -> Optional[str]:
@@ -543,4 +549,6 @@ async def generate_skill_report_from_result(
         max_llm_calls=profile.max_llm_calls,
         config_file=config_file,
         llm_config=llm_config,
+        stream=stream,
+        llm_timeout=llm_timeout,
     )

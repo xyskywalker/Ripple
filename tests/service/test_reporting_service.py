@@ -29,7 +29,7 @@ async def test_generate_report_uses_request_llm_config_before_default_file(monke
     captured: dict = {}
 
     class _FakeRouter:
-        def __init__(self, llm_config=None, max_llm_calls=200, config_file=None):
+        def __init__(self, llm_config=None, max_llm_calls=200, config_file=None, stream=None, timeout_override=None):
             captured["llm_config"] = llm_config
             captured["max_llm_calls"] = max_llm_calls
             captured["config_file"] = config_file
@@ -65,7 +65,7 @@ async def test_generate_report_falls_back_to_default_config_file(monkeypatch, tm
     captured: dict = {}
 
     class _FakeRouter:
-        def __init__(self, llm_config=None, max_llm_calls=200, config_file=None):
+        def __init__(self, llm_config=None, max_llm_calls=200, config_file=None, stream=None, timeout_override=None):
             captured["llm_config"] = llm_config
             captured["max_llm_calls"] = max_llm_calls
             captured["config_file"] = config_file
