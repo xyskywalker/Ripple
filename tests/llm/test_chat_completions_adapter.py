@@ -10,6 +10,7 @@
 
 import pytest
 
+import ripple.llm.chat_completions_adapter as chat_completions_adapter_module
 from ripple.llm.chat_completions_adapter import ChatCompletionsAdapter
 
 
@@ -201,3 +202,62 @@ class TestFromEndpointConfig:
         assert adapter._model == "gpt-4o"
         assert adapter._temperature == 0.5
         assert adapter._max_tokens == 2048
+
+
+class TestStreaming:
+    """流式解析测试。 / Streaming parsing tests."""
+
+    @pytest.mark.asyncio
+    async def test_call_stream_ignores_empty_choices_chunks(self, monkeypatch):
+        class _FakeResponse:
+            def raise_for_status(self):
+                return None
+
+            async def aiter_lines(self):
+                lines = [
+                    'data: {"choices":[]}',
+                    'data: {"choices":[{"delta":{"content":"Hello"}}]}',
+                    'data: {"choices":[{"delta":{"content":" world"}}]}',
+                    "data: [DONE]",
+                ]
+                for line in lines:
+                    yield line
+
+        class _FakeStreamContext:
+            async def __aenter__(self):
+                return _FakeResponse()
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        class _FakeClient:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            def stream(self, method, url, headers=None, json=None):
+                return _FakeStreamContext()
+
+        monkeypatch.setattr(
+            chat_completions_adapter_module.httpx,
+            "AsyncClient",
+            _FakeClient,
+        )
+
+        adapter = ChatCompletionsAdapter(
+            url="https://api.openai.com/v1",
+            api_key="test-key",
+            model="gpt-4o",
+        )
+
+        result = await adapter._call_stream(
+            headers={"Authorization": "Bearer test-key"},
+            request_body={"model": "gpt-4o", "stream": True},
+        )
+
+        assert result == "Hello world"

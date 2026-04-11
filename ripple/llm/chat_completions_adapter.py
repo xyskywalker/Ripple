@@ -214,11 +214,10 @@ class ChatCompletionsAdapter:
                         data = json.loads(payload)
                     except json.JSONDecodeError:
                         continue
-                    delta = (
-                        data.get("choices", [{}])[0]
-                        .get("delta", {})
-                        .get("content")
-                    )
+                    choices = data.get("choices") or []
+                    if not choices:
+                        continue
+                    delta = choices[0].get("delta", {}).get("content")
                     if delta:
                         chunks.append(delta)
 

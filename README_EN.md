@@ -19,8 +19,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/version-0.2.1-green" alt="Version">
-  <img src="https://img.shields.io/badge/tests-355%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/version-0.2.6-green" alt="Version">
+  <img src="https://img.shields.io/badge/tests-379%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/skills-2-teal" alt="Skills">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-orange" alt="License">
   <img src="https://img.shields.io/badge/LLM-Anthropic%20%7C%20OpenAI%20%7C%20Bedrock-purple" alt="LLM">
@@ -257,7 +257,7 @@ docker run -d --name ripple-service \
   -e RIPPLE_LLM_URL=https://api.openai.com/v1 \
   -e RIPPLE_LLM_API_MODE=chat_completions \
   -v "$PWD/data/ripple-service:/data" \
-  xyplusxy/ripple:v0.2.1
+  xyplusxy/ripple:v0.2.6
 ```
 
 **B) Reference Host Environment Variable**
@@ -274,7 +274,7 @@ docker run -d --name ripple-service \
   -e RIPPLE_LLM_URL=https://api.openai.com/v1 \
   -e RIPPLE_LLM_API_MODE=chat_completions \
   -v "$PWD/data/ripple-service:/data" \
-  xyplusxy/ripple:v0.2.1
+  xyplusxy/ripple:v0.2.6
 ```
 
 **Mode 1: HTTP+SSE Call Sample (auth enabled)**
@@ -320,7 +320,7 @@ ls data/ripple-service/ripple_outputs
 docker run -d --name ripple-service \
   -p 127.0.0.1:8080:8080 \
   -v "$PWD/data/ripple-service:/data" \
-  xyplusxy/ripple:v0.2.1
+  xyplusxy/ripple:v0.2.6
 ```
 
 > If you want this mode to require auth too, add `-e RIPPLE_API_TOKEN=your-service-token`.
@@ -881,14 +881,14 @@ docs/                        # 📚 Design documents
 
 ## 📋 Project Status
 
-> **v0.2.1 — Core architecture + two domain Skills implemented, iterating continuously** 🚧
+> **v0.2.6 — Core architecture + two domain Skills implemented, iterating continuously** 🚧
 
 | Metric | Data |
 |--------|------|
-| Version | `0.2.1` |
+| Version | `0.2.6` |
 | Core source files | 35 modules |
-| Test cases | 355 (all passing ✅) |
-| Test files | 53 (covering all layers) |
+| Test cases | 379 (all passing ✅) |
+| Test files | 54 (covering all layers) |
 | Domain Skills | 2 (social-media v0.2.0 · pmf-validation v0.2.0) |
 | Skill config files | 49 (metadata + profiles + prompts + schemas + examples + report templates) |
 | Social media platforms | 7 (Xiaohongshu · Douyin · Weibo · Bilibili · Zhihu · WeChat · Generic) |

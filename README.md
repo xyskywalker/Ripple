@@ -19,8 +19,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/version-0.2.1-green" alt="Version">
-  <img src="https://img.shields.io/badge/tests-355%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/version-0.2.6-green" alt="Version">
+  <img src="https://img.shields.io/badge/tests-379%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/skills-2-teal" alt="Skills">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-orange" alt="License">
   <img src="https://img.shields.io/badge/LLM-Anthropic%20%7C%20OpenAI%20%7C%20Bedrock-purple" alt="LLM">
@@ -257,7 +257,7 @@ docker run -d --name ripple-service \
   -e RIPPLE_LLM_URL=https://api.openai.com/v1 \
   -e RIPPLE_LLM_API_MODE=chat_completions \
   -v "$PWD/data/ripple-service:/data" \
-  xyplusxy/ripple:v0.2.1
+  xyplusxy/ripple:v0.2.6
 ```
 
 **B) 引用环境变量**
@@ -274,7 +274,7 @@ docker run -d --name ripple-service \
   -e RIPPLE_LLM_URL=https://api.openai.com/v1 \
   -e RIPPLE_LLM_API_MODE=chat_completions \
   -v "$PWD/data/ripple-service:/data" \
-  xyplusxy/ripple:v0.2.1
+  xyplusxy/ripple:v0.2.6
 ```
 
 **方式1：HTTP+SSE 调用示例（开启鉴权）**
@@ -320,7 +320,7 @@ ls data/ripple-service/ripple_outputs
 docker run -d --name ripple-service \
   -p 127.0.0.1:8080:8080 \
   -v "$PWD/data/ripple-service:/data" \
-  xyplusxy/ripple:v0.2.1
+  xyplusxy/ripple:v0.2.6
 ```
 
 > 如果你希望这一模式也启用鉴权，只需额外传入 `-e RIPPLE_API_TOKEN=your-service-token`。
@@ -881,14 +881,14 @@ docs/                        # 📚 设计文档
 
 ## 📋 项目状态
 
-> **v0.2.1 — 核心架构 + 两个领域 Skill 已实现，持续迭代中** 🚧
+> **v0.2.6 — 核心架构 + 两个领域 Skill 已实现，持续迭代中** 🚧
 
 | 指标 | 数据 |
 |------|------|
-| 版本 | `0.2.1` |
+| 版本 | `0.2.6` |
 | 核心源文件 | 35 个模块 |
-| 测试用例 | 355 个（全部通过 ✅） |
-| 测试文件 | 53 个（覆盖全部层级） |
+| 测试用例 | 379 个（全部通过 ✅） |
+| 测试文件 | 54 个（覆盖全部层级） |
 | 领域 Skill | 2 个（social-media v0.2.0 · pmf-validation v0.2.0） |
 | Skill 配置文件 | 49 个（元数据 + 画像 + Prompt + Schema + 示例 + 报告模板） |
 | 社交媒体平台 | 7 个（小红书 · 抖音 · 微博 · B站 · 知乎 · 微信公众号 · 通用） |
