@@ -67,7 +67,7 @@ class ModelEndpointConfig:
     api_mode: str = "chat_completions"
 
     # --- 可选：模型行为参数 / Optional: model behavior params ---
-    temperature: float = 0.7
+    temperature: Optional[float] = None
     # 安全默认上限，避免第三方 SDK 回退到异常超大值 / Safe default cap to prevent SDK fallback to huge values
     max_tokens: Optional[int] = 4096
     timeout: Optional[float] = None
@@ -150,7 +150,11 @@ class ModelEndpointConfig:
             api_key=data.get("api_key"),
             url=data.get("url"),
             api_mode=api_mode,
-            temperature=float(data.get("temperature", 0.7)),
+            temperature=(
+                float(data["temperature"])
+                if "temperature" in data and data["temperature"] is not None
+                else None
+            ),
             max_tokens=(
                 data["max_tokens"] if "max_tokens" in data else 4096
             ),
@@ -492,7 +496,11 @@ class LLMConfigLoader:
                 "model": cfg.model_name,
                 "url": cfg.url or "(auto)",
                 "api_key": _mask_key(cfg.api_key),
-                "temperature": str(cfg.temperature),
+                "temperature": (
+                    str(cfg.temperature)
+                    if cfg.temperature is not None
+                    else "(unset)"
+                ),
             }
         return result
 

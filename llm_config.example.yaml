@@ -38,6 +38,35 @@
 #   - platform=bedrock → bedrock
 #   - URL 包含 /responses → responses / URL contains /responses → responses
 #   - 其他 → chat_completions / Otherwise → chat_completions
+#
+# -----------------------------------------------------------------------------
+# ⚠️ 最新模型的 temperature 兼容性提示 / Temperature compatibility notice
+# -----------------------------------------------------------------------------
+# Ripple 已统一为“不配置 temperature → 请求体里不带 temperature”的策略。
+# 所有 adapter（chat_completions / responses / anthropic / bedrock）行为一致。
+# Ripple now follows a unified rule: if temperature is not set, it is NOT sent
+# to the LLM. All adapters (chat_completions / responses / anthropic / bedrock)
+# behave the same way.
+#
+#   - Anthropic Claude 最新模型（如 claude-opus-4-6 / claude-opus-4-7 及之后）
+#     已不再支持 temperature 参数，请在对应角色 / _default 中 **不要** 配置
+#     temperature，否则服务端会直接报错。
+#     Latest Anthropic Claude models (e.g. claude-opus-4-6 / claude-opus-4-7
+#     and newer) no longer accept the temperature parameter. **Do not** set
+#     temperature for these roles / _default — the API will reject the call.
+#
+#   - OpenAI GPT 最新模型（如 gpt-5.4 / gpt-5.5 等）不再允许同时传入
+#     temperature 和 top_k（或 top_p）。如果你的模型属于这一类，请二选一，
+#     或者两者都不配置、交由服务端默认采样策略处理。
+#     Latest OpenAI GPT models (e.g. gpt-5.4 / gpt-5.5 and similar) no longer
+#     allow temperature and top_k (or top_p) to be set simultaneously. For
+#     these models, configure at most one of them, or leave both unset and
+#     rely on the server-side default sampling policy.
+#
+#   - 规则总结 / Rule of thumb：当目标模型对采样参数做了收紧时，优先 **不配置**
+#     temperature（删除/注释掉这一行），Ripple 不会再自动补默认值。
+#     When the target model tightens its sampling parameter contract, **omit**
+#     the temperature line entirely — Ripple will not silently inject a default.
 # =============================================================================
 
 # ---------------------------------------------------------------------------
@@ -53,7 +82,10 @@ _default:
   api_key: sample-apikey
   url: https://ark.cn-beijing.volces.com/api/v3/responses
   api_mode: responses                    # 自动推断，可省略 / Auto-inferred, can be omitted
-  temperature: 0.7
+  temperature: 0.7                       # 可选：留空/删除本行则不会向 LLM 发送 temperature
+                                          # Optional: omit/remove this line to NOT send temperature to the LLM
+                                          # （claude-opus-4-6/4-7 等模型必须删除；gpt-5.4/5.5 等需与 top_k/top_p 二选一）
+                                          # (remove for claude-opus-4-6/4-7 etc.; pick only one of temperature / top_k for gpt-5.4/5.5 etc.)
   max_retries: 3
   # stream: true                         # 流式调用（SSE），默认 true；设为 false 切换为非流式
                                           # Streaming (SSE), default true; set false for non-streaming
@@ -75,16 +107,20 @@ _default:
 # ---------------------------------------------------------------------------
 
 # Omniscient Agent — 全视者（核心编排，需要高智能模型） / Omniscient (core orchestration, needs high-intelligence model)
+# 若底层模型不支持 temperature（如 claude-opus-4-6/4-7）请整行注释或删除，切勿写 null。
+# If the underlying model does not accept temperature (e.g. claude-opus-4-6/4-7), comment out or delete this line; do not write null.
 omniscient:
   temperature: 0.7
 
 # Star Agent — 质量优先（KOL 决策需要高智能模型） / Quality-first (KOL decisions need high-intelligence model)
 star:
   temperature: 0.8                         # Star 可适当提高创造性 / Higher creativity for Star
+                                            # 同上：不兼容的模型请直接删除此行 / Same as above: remove this line for incompatible models
 
 # Sea Agent — 成本优先（群体行为可用轻量模型） / Cost-first (crowd behavior can use lightweight model)
 sea:
   temperature: 0.5                         # Sea 偏稳定 / More stable for Sea
+                                            # 同上：不兼容的模型请直接删除此行 / Same as above: remove this line for incompatible models
 
 # ---------------------------------------------------------------------------
 # 嵌入模型配置（可选） / Embedding model config (optional)

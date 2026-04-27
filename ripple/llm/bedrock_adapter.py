@@ -46,7 +46,7 @@ class BedrockAdapter:
         model: str,
         region_name: Optional[str] = None,
         aws_profile: Optional[str] = None,
-        temperature: float = 0.7,
+        temperature: Optional[float] = None,
         max_tokens: int = 4096,
         max_retries: int = 3,
         stream: bool = True,
@@ -57,7 +57,7 @@ class BedrockAdapter:
             model: Bedrock 模型 ID。 / Bedrock model ID (e.g. "anthropic.claude-sonnet-4-20250514-v1:0").
             region_name: AWS 区域。 / AWS region (e.g. "us-east-1").
             aws_profile: AWS CLI profile 名称（可选）。 / AWS CLI profile name (optional).
-            temperature: 生成温度。 / Generation temperature.
+            temperature: 生成温度；None 表示不发送该参数。 / Generation temperature; None means omit it.
             max_tokens: 最大输出 token 数。 / Max output tokens.
             max_retries: 最大重试次数。 / Max retry count.
             stream: 是否使用流式调用，默认 True。 / Whether to use streaming, default True.
@@ -200,11 +200,12 @@ class BedrockAdapter:
             body: Dict[str, Any] = {
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": self._max_tokens,
-                "temperature": self._temperature,
                 "messages": [{"role": "user", "content": user_message}],
             }
             if system_prompt:
                 body["system"] = system_prompt
+            if self._temperature is not None:
+                body["temperature"] = self._temperature
             return body
 
         # 通用格式（Amazon Titan 等） / Generic format (Amazon Titan, etc.)
@@ -214,12 +215,15 @@ class BedrockAdapter:
         else:
             prompt = user_message
 
+        text_generation_config: Dict[str, Any] = {
+            "maxTokenCount": self._max_tokens,
+        }
+        if self._temperature is not None:
+            text_generation_config["temperature"] = self._temperature
+
         return {
             "inputText": prompt,
-            "textGenerationConfig": {
-                "maxTokenCount": self._max_tokens,
-                "temperature": self._temperature,
-            },
+            "textGenerationConfig": text_generation_config,
         }
 
     def _extract_stream_chunk(self, data: Dict[str, Any]) -> str:

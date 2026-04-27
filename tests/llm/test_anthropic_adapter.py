@@ -8,7 +8,9 @@
 # =============================================================================
 
 import pytest
+import httpx
 
+import ripple.llm.anthropic_adapter as anthropic_adapter_module
 from ripple.llm.anthropic_adapter import AnthropicAdapter
 
 
@@ -73,6 +75,24 @@ class TestBuildRequest:
         body = adapter._build_request("sys", "user")
         assert body["max_tokens"] == 1024
 
+    def test_omits_temperature_when_not_configured(self):
+        adapter = AnthropicAdapter(
+            api_key="test-key",
+            model="claude-opus-4-7",
+            temperature=None,
+        )
+        body = adapter._build_request("sys", "user")
+        assert "temperature" not in body
+
+    def test_includes_explicit_temperature(self):
+        adapter = AnthropicAdapter(
+            api_key="test-key",
+            model="claude-sonnet-4-20250514",
+            temperature=0.5,
+        )
+        body = adapter._build_request("sys", "user")
+        assert body["temperature"] == 0.5
+
 
 class TestExtractText:
     """响应解析测试。 / Response parsing tests."""
@@ -99,6 +119,62 @@ class TestExtractText:
 
     def test_returns_empty_on_empty_content(self):
         assert AnthropicAdapter._extract_text({"content": []}) == ""
+
+
+class TestCallErrorHandling:
+    """调用错误处理测试。 / Call error handling tests."""
+
+    @pytest.mark.asyncio
+    async def test_stream_http_error_preserves_response_body(self, monkeypatch):
+        request = httpx.Request("POST", "https://gateway.test/v1/messages")
+
+        class _FakeStreamContext:
+            def __init__(self):
+                self.response = httpx.Response(
+                    400,
+                    request=request,
+                    stream=httpx.ByteStream(b'{"error":"invalid model"}'),
+                )
+
+            async def __aenter__(self):
+                return self.response
+
+            async def __aexit__(self, exc_type, exc, tb):
+                await self.response.aclose()
+                return False
+
+        class _FakeClient:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            def stream(self, method, url, headers=None, json=None):
+                return _FakeStreamContext()
+
+        monkeypatch.setattr(
+            anthropic_adapter_module.httpx,
+            "AsyncClient",
+            _FakeClient,
+        )
+        adapter = AnthropicAdapter(
+            api_key="test-key",
+            model="bad-model",
+            max_retries=0,
+            stream=True,
+        )
+
+        with pytest.raises(RuntimeError) as excinfo:
+            await adapter.call("sys", "user")
+
+        message = str(excinfo.value)
+        assert "400 Bad Request" in message
+        assert "invalid model" in message
+        assert "ResponseNotRead" not in message
 
 
 class TestFromEndpointConfig:

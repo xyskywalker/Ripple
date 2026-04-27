@@ -47,7 +47,7 @@ class AnthropicAdapter:
         api_key: str,
         model: str,
         url: Optional[str] = None,
-        temperature: float = 0.7,
+        temperature: Optional[float] = None,
         max_tokens: int = 4096,
         timeout: float = 120.0,
         max_retries: int = 3,
@@ -59,7 +59,7 @@ class AnthropicAdapter:
             api_key: Anthropic API 密钥。 / Anthropic API key.
             model: 模型名称。 / Model name (e.g. "claude-sonnet-4-20250514").
             url: API 端点 URL（可选，默认官方端点）。 / Endpoint URL (optional, defaults to official).
-            temperature: 生成温度。 / Generation temperature.
+            temperature: 生成温度；None 表示不发送该参数。 / Generation temperature; None means omit it.
             max_tokens: 最大输出 token 数。 / Max output tokens.
             timeout: 请求超时时间（秒）。 / Request timeout in seconds.
             max_retries: 最大重试次数。 / Max retry count.
@@ -106,6 +106,7 @@ class AnthropicAdapter:
         }
 
         last_error: Optional[Exception] = None
+        last_error_detail: Optional[str] = None
         for attempt in range(self._max_retries + 1):
             try:
                 if self._stream:
@@ -115,15 +116,18 @@ class AnthropicAdapter:
 
             except httpx.HTTPStatusError as e:
                 last_error = e
+                error_text = self._response_error_text(e.response)
+                last_error_detail = self._format_http_status_error(e, error_text)
                 logger.warning(
                     "Anthropic Messages API 调用失败 (HTTP %d)，第 %d/%d 次: %s",
                     e.response.status_code,
                     attempt + 1,
                     self._max_retries + 1,
-                    e.response.text[:200],
+                    error_text[:200],
                 )
             except httpx.RequestError as e:
                 last_error = e
+                last_error_detail = str(e)
                 logger.warning(
                     "Anthropic Messages API 请求异常，第 %d/%d 次: %s",
                     attempt + 1,
@@ -132,6 +136,7 @@ class AnthropicAdapter:
                 )
             except Exception as e:
                 last_error = e
+                last_error_detail = str(e)
                 logger.warning(
                     "Anthropic Messages API 未知异常，第 %d/%d 次: %s",
                     attempt + 1,
@@ -141,7 +146,7 @@ class AnthropicAdapter:
 
         raise RuntimeError(
             f"Anthropic Messages API 调用在 {self._max_retries + 1} 次尝试后仍失败: "
-            f"{last_error}"
+            f"{last_error_detail or last_error}"
         )
 
     async def _call_non_stream(
@@ -174,6 +179,11 @@ class AnthropicAdapter:
             async with client.stream(
                 "POST", self._endpoint, headers=headers, json=request_body,
             ) as response:
+                if response.is_error:
+                    try:
+                        await response.aread()
+                    except httpx.HTTPError:
+                        pass
                 response.raise_for_status()
                 event_type = ""
                 async for line in response.aiter_lines():
@@ -200,6 +210,26 @@ class AnthropicAdapter:
         if not text:
             logger.warning("Anthropic Messages API 流式响应未收到任何文本内容")
         return text
+
+    @staticmethod
+    def _response_error_text(response: httpx.Response) -> str:
+        """Safely read an HTTP error response body for logging."""
+        try:
+            return response.text
+        except httpx.ResponseNotRead:
+            return "<response body was not read>"
+        except Exception as exc:
+            return f"<failed to read response body: {exc}>"
+
+    @staticmethod
+    def _format_http_status_error(
+        error: httpx.HTTPStatusError,
+        response_text: str,
+    ) -> str:
+        detail = str(error)
+        if response_text:
+            detail = f"{detail}; response={response_text[:500]}"
+        return detail
 
     # =========================================================================
     # URL 解析 / URL Resolution
@@ -235,11 +265,12 @@ class AnthropicAdapter:
             "model": self._model,
             "max_tokens": self._max_tokens,
             "messages": [{"role": "user", "content": user_message}],
-            "temperature": self._temperature,
         }
 
         if system_prompt:
             body["system"] = system_prompt
+        if self._temperature is not None:
+            body["temperature"] = self._temperature
 
         return body
 

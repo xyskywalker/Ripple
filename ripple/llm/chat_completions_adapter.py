@@ -58,7 +58,7 @@ class ChatCompletionsAdapter:
         url: str,
         api_key: str,
         model: str,
-        temperature: float = 0.7,
+        temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         timeout: float = 120.0,
         max_retries: int = 3,
@@ -74,7 +74,7 @@ class ChatCompletionsAdapter:
                  - 带参数 URL / URL with query params → preserved
             api_key: API 密钥。 / API key.
             model: 模型名称。 / Model name (e.g. "gpt-4o").
-            temperature: 生成温度。 / Generation temperature.
+            temperature: 生成温度；None 表示不发送该参数。 / Generation temperature; None means omit it.
             max_tokens: 最大输出 token 数。 / Max output tokens.
             timeout: 请求超时时间（秒）。 / Request timeout in seconds.
             max_retries: 最大重试次数。 / Max retry count.
@@ -283,9 +283,10 @@ class ChatCompletionsAdapter:
         body: Dict[str, Any] = {
             "model": self._model,
             "messages": messages,
-            "temperature": self._temperature,
         }
 
+        if self._temperature is not None:
+            body["temperature"] = self._temperature
         if self._max_tokens is not None:
             body["max_tokens"] = self._max_tokens
 
